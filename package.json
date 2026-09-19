@@ -1,0 +1,19 @@
+{
+  "name": "cocowiki-workspace",
+  "version": "0.2.1",
+  "author": "Mueo",
+  "license": "MIT",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coconi-dev/cocowiki.git"
+  },
+  "scripts": {
+    "dev": "pnpm --dir examples/demo dev",
+    "build": "pnpm --dir examples/demo build",
+    "preview": "pnpm --dir examples/demo preview",
+    "typecheck": "pnpm --dir packages/cocowiki typecheck",
+    "check": "pnpm typecheck && pnpm build"
+  }
+}

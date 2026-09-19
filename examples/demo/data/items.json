@@ -1,0 +1,34 @@
+[
+  {
+    "id": "content-index",
+    "name": "内容索引",
+    "rarity": "core",
+    "category": "data",
+    "description": "在构建期从 Markdown 与 Frontmatter 中整理出的搜索数据。",
+    "contributors": ["杰登"]
+  },
+  {
+    "id": "page-state",
+    "name": "页面状态",
+    "rarity": "stable",
+    "category": "logic",
+    "description": "筛选、排序和主题模式使用的轻量客户端状态。",
+    "contributors": ["卡卡"]
+  },
+  {
+    "id": "search-panel",
+    "name": "搜索面板",
+    "rarity": "stable",
+    "category": "interface",
+    "description": "能够通过键盘或导航快速打开的全站检索入口。",
+    "contributors": ["皙折"]
+  },
+  {
+    "id": "vue-page",
+    "name": "Vue 专属页",
+    "rarity": "extended",
+    "category": "interface",
+    "description": "以 .page.vue 约定创建的纯 Vue 功能页面。",
+    "contributors": ["皙折", "卡卡"]
+  }
+]
