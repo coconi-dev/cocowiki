@@ -1,6 +1,6 @@
 {
   "name": "create-cocowiki",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "Create a CoCoWiki site.",
   "author": "Mueo",
@@ -14,11 +14,23 @@
   "bugs": {
     "url": "https://github.com/coconi-dev/cocowiki/issues"
   },
-  "keywords": ["cocowiki", "wiki", "vitepress", "scaffold"],
+  "keywords": [
+    "cocowiki",
+    "wiki",
+    "vitepress",
+    "scaffold"
+  ],
   "bin": {
     "create-cocowiki": "./bin/create-cocowiki.mjs"
   },
-  "files": ["bin", "template"],
-  "publishConfig": { "access": "public" },
-  "engines": { "node": ">=20" }
+  "files": [
+    "bin",
+    "template"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

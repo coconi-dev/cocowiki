@@ -1,6 +1,6 @@
 {
   "name": "cocowiki",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "Search-first static wiki framework powered by VitePress and Vue.",
   "author": "Mueo",
@@ -14,8 +14,16 @@
   "bugs": {
     "url": "https://github.com/coconi-dev/cocowiki/issues"
   },
-  "keywords": ["wiki", "vitepress", "vue", "markdown", "static-site"],
-  "bin": { "cocowiki": "./bin/cocowiki.mjs" },
+  "keywords": [
+    "wiki",
+    "vitepress",
+    "vue",
+    "markdown",
+    "static-site"
+  ],
+  "bin": {
+    "cocowiki": "./bin/cocowiki.mjs"
+  },
   "exports": {
     ".": {
       "types": "./src/config.ts",
@@ -29,14 +37,20 @@
     "./theme/customization": "./src/theme/customization.ts",
     "./theme/components": "./src/theme/components/index.ts"
   },
-  "files": ["bin", "dist", "src"],
+  "files": [
+    "bin",
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build:package": "esbuild src/config.ts src/node/vitepress.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "prepack": "esbuild src/config.ts src/node/vitepress.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
     "prepublishOnly": "vue-tsc --noEmit -p tsconfig.json"
   },
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "fast-glob": "^3.3.3",
     "gray-matter": "^4.0.3",
@@ -53,5 +67,7 @@
     "typescript": "^5.7.3",
     "vue-tsc": "^2.2.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
