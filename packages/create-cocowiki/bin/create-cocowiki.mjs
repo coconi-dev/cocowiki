@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -19,6 +19,7 @@ try {
   if (existing.length) fail(`目标目录不为空：${targetDirectory}`)
 
   await cp(templateDirectory, targetDirectory, { recursive: true })
+  await rename(resolve(targetDirectory, '_gitignore'), resolve(targetDirectory, '.gitignore'))
 
   const packageFile = resolve(targetDirectory, 'package.json')
   const packageJson = JSON.parse(await readFile(packageFile, 'utf8'))
