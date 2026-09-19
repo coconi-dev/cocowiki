@@ -2,17 +2,43 @@ import container from 'markdown-it-container'
 import type { SearchRecord } from './content.ts'
 
 function addSpoilerRule(md: any) {
-  md.inline.ruler.before('text', 'cocowiki-spoiler', (state: any, silent: boolean) => {
-    const start = state.pos
-    if (state.src.slice(start, start + 2) !== '||') return false
-    const end = state.src.indexOf('||', start + 2)
-    if (end < 0) return false
-    if (!silent) {
-      const token = state.push('html_inline', '', 0)
-      token.content = `<button class="cw-spoiler" type="button" aria-expanded="false" aria-label="剧透内容，点击显示"><span>${md.utils.escapeHtml(state.src.slice(start + 2, end))}</span></button>`
+  md.core.ruler.after('inline', 'cocowiki-spoiler', (state: any) => {
+    for (const blockToken of state.tokens) {
+      if (blockToken.type !== 'inline' || !blockToken.children) continue
+      const children = []
+
+      for (const token of blockToken.children) {
+        if (token.type !== 'text' || !token.content.includes('||')) {
+          children.push(token)
+          continue
+        }
+
+        const pattern = /\|\|([^|]+?)\|\|/g
+        let cursor = 0
+        let match: RegExpExecArray | null
+        while ((match = pattern.exec(token.content))) {
+          if (match.index > cursor) {
+            const text = new state.Token('text', '', 0)
+            text.content = token.content.slice(cursor, match.index)
+            children.push(text)
+          }
+          const spoiler = new state.Token('html_inline', '', 0)
+          spoiler.content = `<button class="cw-spoiler" type="button" aria-expanded="false" aria-label="剧透内容，点击显示"><span>${md.utils.escapeHtml(match[1])}</span></button>`
+          children.push(spoiler)
+          cursor = pattern.lastIndex
+        }
+
+        if (cursor === 0) {
+          children.push(token)
+        } else if (cursor < token.content.length) {
+          const text = new state.Token('text', '', 0)
+          text.content = token.content.slice(cursor)
+          children.push(text)
+        }
+      }
+
+      blockToken.children = children
     }
-    state.pos = end + 2
-    return true
   })
 }
 
