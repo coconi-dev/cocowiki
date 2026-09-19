@@ -10,9 +10,9 @@
     "url": "git+https://github.com/coconi-dev/cocowiki.git"
   },
   "scripts": {
-    "dev": "pnpm --dir examples/demo dev",
-    "build": "pnpm --dir examples/demo build",
-    "preview": "pnpm --dir examples/demo preview",
+    "dev": "pnpm --dir playground dev",
+    "build": "pnpm --dir playground build",
+    "preview": "pnpm --dir playground preview",
     "typecheck": "pnpm --dir packages/cocowiki typecheck",
     "check": "pnpm typecheck && pnpm build"
   }

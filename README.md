@@ -76,8 +76,7 @@ cocowiki/
 ├─ packages/
 │  ├─ cocowiki/          # 框架、CLI、构建适配与默认主题
 │  └─ create-cocowiki/   # 项目初始化器与默认模板
-├─ examples/
-│  └─ demo/              # 功能示例与集成验证站点
+├─ playground/           # 功能展示与集成验证站点
 ├─ package.json
 └─ pnpm-workspace.yaml
 ```

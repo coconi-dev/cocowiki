@@ -8,18 +8,6 @@ importers:
 
   .: {}
 
-  examples/demo:
-    dependencies:
-      cocowiki:
-        specifier: workspace:*
-        version: link:../../packages/cocowiki
-      vitepress:
-        specifier: ^1.6.4
-        version: 1.6.4(@algolia/client-search@5.59.0)(@types/node@22.20.3)(postcss@8.5.28)(search-insights@2.17.3)(typescript@5.7.3)
-      vue:
-        specifier: ^3.5.42
-        version: 3.5.42(typescript@5.7.3)
-
   packages/cocowiki:
     dependencies:
       fast-glob:
@@ -61,6 +49,18 @@ importers:
         version: 2.2.0(typescript@5.7.3)
 
   packages/create-cocowiki: {}
+
+  playground:
+    dependencies:
+      cocowiki:
+        specifier: workspace:*
+        version: link:../packages/cocowiki
+      vitepress:
+        specifier: ^1.6.4
+        version: 1.6.4(@algolia/client-search@5.59.0)(@types/node@22.20.3)(postcss@8.5.28)(search-insights@2.17.3)(typescript@5.7.3)
+      vue:
+        specifier: ^3.5.42
+        version: 3.5.42(typescript@5.7.3)
 
 packages:
 
