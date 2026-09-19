@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { withBase } from 'vitepress'
 import type { SearchRecord } from '../../node/content'
 import { loadContentRecords } from '../content'
 
 const query = ref('')
-const records = ref<SearchRecord[]>([])
+const records = shallowRef<SearchRecord[]>([])
 const archive = computed(() => records.value.filter((record) => {
   if (record.archive === false) return false
   return !['home', 'search', 'archive'].includes(record.layout || '')

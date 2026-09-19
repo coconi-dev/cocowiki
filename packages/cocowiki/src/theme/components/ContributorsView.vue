@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, shallowRef } from 'vue'
 import { withBase } from 'vitepress'
 import contributors from 'virtual:cocowiki-contributors'
 import type { SearchRecord } from '../../node/content'
@@ -15,7 +15,7 @@ interface ContributorProfile {
   github?: string
 }
 
-const records = ref<SearchRecord[]>([])
+const records = shallowRef<SearchRecord[]>([])
 const sources = useContributorContributionSources()
 const profiles = contributors as Record<string, ContributorProfile>
 

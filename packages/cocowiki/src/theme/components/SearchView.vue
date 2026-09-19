@@ -2,15 +2,14 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { withBase } from 'vitepress'
 import type { SearchRecord } from '../../node/content'
-import { loadContentRecords } from '../content'
+import { loadSearchContent } from '../content'
 import { createSearch } from '../search'
 
 type SearchResultRecord = SearchRecord & { contributorNames?: string[] }
 
 const query = ref('')
 const type = ref('all')
-const records = ref<SearchRecord[]>([])
-const searchable = computed(() => records.value.filter((record) => record.search !== false && !['/', '/search', '/archive'].includes(record.route)))
+const searchable = shallowRef<SearchRecord[]>([])
 const miniSearch = shallowRef<ReturnType<typeof createSearch>>()
 
 const types = computed(() => [...new Set(searchable.value.map((item) => item.category || item.type).filter((value): value is string => Boolean(value)))])
@@ -36,8 +35,9 @@ function matchSnippet(item: SearchResultRecord, needle: string) {
 
 onMounted(async () => {
   query.value = new URLSearchParams(location.search).get('q') || ''
-  records.value = await loadContentRecords()
-  miniSearch.value = createSearch(searchable.value)
+  const content = await loadSearchContent()
+  searchable.value = content.records
+  miniSearch.value = content.index
 })
 </script>
 

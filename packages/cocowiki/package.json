@@ -25,7 +25,9 @@
       "types": "./src/node/vitepress.ts",
       "import": "./dist/node/vitepress.js"
     },
-    "./theme": "./src/theme/index.ts"
+    "./theme": "./src/theme/index.ts",
+    "./theme/customization": "./src/theme/customization.ts",
+    "./theme/components": "./src/theme/components/index.ts"
   },
   "files": ["bin", "dist", "src"],
   "scripts": {

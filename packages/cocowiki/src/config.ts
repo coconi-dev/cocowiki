@@ -12,6 +12,31 @@ export interface CocoWikiDirectories {
   out?: string
 }
 
+export interface CocoWikiThemeComponents {
+  Header?: string
+  Home?: string
+  Search?: string
+  Archive?: string
+  Contributors?: string
+  PageMeta?: string
+  PageOutline?: string
+  ContentSidebar?: string
+  PageNavigation?: string
+  PageFooter?: string
+  SearchOverlay?: string
+  Loading?: string
+  NotFound?: string
+}
+
+export interface CocoWikiThemeConfig {
+  /** A complete VitePress-compatible theme entry, relative to the project root. */
+  entry?: string
+  /** One or more style sheets, relative to the project root. */
+  styles?: string | string[]
+  /** Replace individual components while keeping the default CoCoWiki layout. */
+  components?: CocoWikiThemeComponents
+}
+
 export interface CocoWikiConfig {
   title: string
   description?: string
@@ -21,7 +46,7 @@ export interface CocoWikiConfig {
   base?: string
   navigation?: CocoWikiNavigationItem[]
   directories?: CocoWikiDirectories
-  theme?: { entry?: string }
+  theme?: CocoWikiThemeConfig
   search?: {
     enabled?: boolean
     include?: string[]

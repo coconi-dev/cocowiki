@@ -1,18 +1,37 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
-import { useData, useRoute, withBase } from 'vitepress'
+import { computed, defineAsyncComponent, inject, onMounted, onUnmounted, ref } from 'vue'
+import { useData, useRoute } from 'vitepress'
 import config from 'virtual:cocowiki-config'
-import SiteHeader from './components/SiteHeader.vue'
-import HomeView from './components/HomeView.vue'
-import PageMeta from './components/PageMeta.vue'
-import PageOutline from './components/PageOutline.vue'
-import ContentSidebar from './components/ContentSidebar.vue'
-import PageNavigation from './components/PageNavigation.vue'
+import DefaultSiteHeader from './components/SiteHeader.vue'
+import DefaultHomeView from './components/HomeView.vue'
+import DefaultPageMeta from './components/PageMeta.vue'
+import DefaultPageOutline from './components/PageOutline.vue'
+import DefaultContentSidebar from './components/ContentSidebar.vue'
+import DefaultPageNavigation from './components/PageNavigation.vue'
+import DefaultPageFooter from './components/PageFooter.vue'
+import DefaultLoadingView from './components/LoadingView.vue'
+import DefaultNotFoundView from './components/NotFoundView.vue'
+import { cocoWikiThemeComponentsKey } from './customization'
 
-const SearchView = defineAsyncComponent(() => import('./components/SearchView.vue'))
-const ArchiveView = defineAsyncComponent(() => import('./components/ArchiveView.vue'))
-const ContributorsView = defineAsyncComponent(() => import('./components/ContributorsView.vue'))
-const SearchOverlay = defineAsyncComponent(() => import('./components/SearchOverlay.vue'))
+const DefaultSearchView = defineAsyncComponent(() => import('./components/SearchView.vue'))
+const DefaultArchiveView = defineAsyncComponent(() => import('./components/ArchiveView.vue'))
+const DefaultContributorsView = defineAsyncComponent(() => import('./components/ContributorsView.vue'))
+const DefaultSearchOverlay = defineAsyncComponent(() => import('./components/SearchOverlay.vue'))
+
+const overrides = inject(cocoWikiThemeComponentsKey, {})
+const SiteHeader = overrides.Header || DefaultSiteHeader
+const HomeView = overrides.Home || DefaultHomeView
+const SearchView = overrides.Search || DefaultSearchView
+const ArchiveView = overrides.Archive || DefaultArchiveView
+const ContributorsView = overrides.Contributors || DefaultContributorsView
+const PageMeta = overrides.PageMeta || DefaultPageMeta
+const PageOutline = overrides.PageOutline || DefaultPageOutline
+const ContentSidebar = overrides.ContentSidebar || DefaultContentSidebar
+const PageNavigation = overrides.PageNavigation || DefaultPageNavigation
+const PageFooter = overrides.PageFooter || DefaultPageFooter
+const SearchOverlay = overrides.SearchOverlay || DefaultSearchOverlay
+const LoadingView = overrides.Loading || DefaultLoadingView
+const NotFoundView = overrides.NotFound || DefaultNotFoundView
 
 const { frontmatter, page, site } = useData()
 const route = useRoute()
@@ -72,7 +91,8 @@ onUnmounted(() => {
       <Suspense :timeout="0">
         <template #default>
           <div class="cw-route-view">
-            <HomeView v-if="layout === 'home'" />
+            <NotFoundView v-if="page.isNotFound" />
+            <HomeView v-else-if="layout === 'home'" />
             <SearchView v-else-if="layout === 'search'" />
             <ArchiveView v-else-if="layout === 'archive'" />
             <ContributorsView v-else-if="layout === 'contributors'" />
@@ -83,21 +103,14 @@ onUnmounted(() => {
                 <PageMeta />
                 <component :is="route.component" class="cw-prose" v-bind="site.contentProps" />
                 <PageNavigation v-if="showPrevNext" />
-                <footer class="cw-doc-footer">
-                  <a v-if="config.search?.enabled !== false" :href="withBase('/search')">返回搜索</a>
-                  <a :href="withBase('/archive')">浏览归档</a>
-                  <span v-if="showLastUpdated && page.lastUpdated">最后更新：{{ new Date(page.lastUpdated).toLocaleDateString('zh-CN') }}</span>
-                </footer>
+                <PageFooter :show-last-updated="showLastUpdated" />
               </article>
               <PageOutline v-if="sidebar === 'outline'" :headers="page.headers" />
             </div>
           </div>
         </template>
         <template #fallback>
-          <div class="cw-route-loading" role="status" aria-live="polite">
-            <span aria-hidden="true"></span>
-            <p>正在载入页面</p>
-          </div>
+          <LoadingView />
         </template>
       </Suspense>
     </main>

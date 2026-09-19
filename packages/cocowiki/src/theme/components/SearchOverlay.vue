@@ -2,25 +2,25 @@
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import type { SearchRecord } from '../../node/content'
-import { loadContentRecords } from '../content'
+import { loadSearchContent } from '../content'
 import { createSearch } from '../search'
 
 const emit = defineEmits<{ close: [] }>()
 const query = ref('')
 const router = useRouter()
-const records = ref<SearchRecord[]>([])
-const searchable = computed(() => records.value.filter((item) => item.search !== false && !['/', '/search', '/archive'].includes(item.route)))
+const searchable = shallowRef<SearchRecord[]>([])
 const miniSearch = shallowRef<ReturnType<typeof createSearch>>()
 const results = computed(() => {
-  if (!query.value.trim()) return searchable.value.filter((item) => item.route.startsWith('/archive/')).slice(0, 5)
+  if (!query.value.trim()) return searchable.value.slice(0, 5)
   return miniSearch.value?.search(query.value, { combineWith: 'AND' }).slice(0, 6) || []
 })
 function go(route: string) { emit('close'); router.go(withBase(route)) }
 function keydown(event: KeyboardEvent) { if (event.key === 'Escape') emit('close') }
 onMounted(async () => {
   window.addEventListener('keydown', keydown)
-  records.value = await loadContentRecords()
-  miniSearch.value = createSearch(searchable.value)
+  const content = await loadSearchContent()
+  searchable.value = content.records
+  miniSearch.value = content.index
 })
 onUnmounted(() => window.removeEventListener('keydown', keydown))
 </script>
