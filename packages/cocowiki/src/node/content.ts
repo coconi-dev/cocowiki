@@ -45,6 +45,7 @@ function recordFromMeta(filename: string, contentRoot: string, meta: Partial<Coc
     updated: meta.updated,
     search: meta.search,
     archive: meta.archive,
+    order: typeof meta.order === 'number' && Number.isFinite(meta.order) ? meta.order : undefined,
     content,
     excerpt: meta.description || content.slice(0, 120)
   } satisfies SearchRecord

@@ -15,6 +15,7 @@
     "preview": "pnpm --dir playground preview",
     "typecheck": "pnpm --dir packages/cocowiki typecheck",
     "check": "pnpm typecheck && pnpm build",
+    "test:navigation": "node --test tests/page-navigation.test.mjs",
     "test:dev": "pnpm --dir packages/cocowiki build:package && node --test tests/dev-lifecycle.test.mjs"
   }
 }

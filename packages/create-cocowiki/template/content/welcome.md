@@ -1,5 +1,6 @@
 ---
 title: 欢迎使用 CoCoWiki
+order: 1
 description: 了解内容编写、组件使用与站点配置。
 type: guide
 category: 使用指南
@@ -36,6 +37,7 @@ CoCoWiki 不要求内容拥有完整目录或固定阅读顺序，因此尤其�
 ```md
 ---
 title: 示例词条
+order: 10
 description: 用一句话介绍当前内容
 category: 世界观
 tags: [设定, 示例]
@@ -47,6 +49,14 @@ contributors: [Mueo]
 
 正文从这里开始。
 ```
+
+## 自定义阅读顺序
+
+在 Markdown 顶部的 Frontmatter 设置 `order`，底部“上一篇 / 下一篇”会按数字从小到大排列，例如 `order: 1`、`order: 2`、`order: 10`。允许负数、零和小数。
+
+未设置 `order` 的页面排在已设置页面之后；数值相同时按标题、路径排序。纯 Vue 页面可在同名 `.page.json` 中设置 `"order": 2`。该字段只控制相邻页面导航，不改变搜索和归档的排序。
+
+首页、搜索、归档、贡献者布局以及 `search: false` 的页面不参与相邻页面导航；`showPrevNext: false` 可隐藏当前文档底部的导航，但不会将该文档移出阅读顺序。
 
 ## 搜索与归档
 

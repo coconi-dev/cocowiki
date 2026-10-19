@@ -93,6 +93,8 @@ export interface CocoWikiPageMeta {
   archive?: boolean
   outline?: boolean
   sidebar?: 'none' | 'light' | 'outline'
+  /** Reading order for previous/next navigation; lower numbers appear first. */
+  order?: number
   showPrevNext?: boolean
   showLastUpdated?: boolean
 }

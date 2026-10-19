@@ -56,6 +56,23 @@ my-wiki/
 
 框架会在 `.cocowiki/` 中生成内部 VitePress 运行目录，用户不需要维护 `.vitepress/`。
 
+## 自定义文档阅读顺序
+
+在 Markdown Frontmatter 中添加 `order`，底部“上一篇 / 下一篇”会按数值从小到大排列：
+
+```yaml
+---
+title: 快速开始
+order: 1
+---
+```
+
+下一篇可设置 `order: 2`，后续为 `3`、`10` 等，支持负数、零和小数。纯 Vue 页面在同名 `.page.json` 中设置 `"order": 2`。
+
+未设置或不是有限数值的 `order` 排在最后；相同数值按标题、路径排序。此顺序只用于相邻页面导航，不改变搜索和归档排序。开发预览会随元数据修改更新。
+
+首页、搜索、归档、贡献者布局和 `search: false` 页面不参与导航。`showPrevNext: false` 只隐藏当前页的导航，不会将页面移出阅读顺序。
+
 ## 配置部署根目录
 
 站点默认部署在域名根目录。部署到 GitHub Pages 仓库路径、Nginx 子目录或其他带路径前缀的静态地址时，可以在 `cocowiki.config.ts` 中设置：
