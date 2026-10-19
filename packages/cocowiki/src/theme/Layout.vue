@@ -114,6 +114,8 @@ onUnmounted(() => {
         </template>
       </Suspense>
     </main>
-    <SearchOverlay v-if="searchOpen" @close="searchOpen = false" />
+    <Transition name="cw-overlay">
+      <SearchOverlay v-if="searchOpen" @close="searchOpen = false" />
+    </Transition>
   </div>
 </template>

@@ -24,6 +24,9 @@
   --cw-home-ground: #f2f3f5;
   --cw-shadow: 0 24px 80px rgb(0 0 0 / 16%);
   --cw-radius: 24px;
+  --cw-ease-out: cubic-bezier(.22, 1, .36, 1);
+  --cw-motion-fast: 160ms;
+  --cw-motion-enter: 360ms;
   --cw-header-height: 52px;
   --cw-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --cw-mono: "SFMono-Regular", Menlo, Consolas, monospace;
@@ -407,6 +410,61 @@ a.cw-contributor-card:hover { box-shadow: 0 8px 28px rgb(0 0 0 / 7%); }
   .cw-search-dialog__input { gap: 12px; padding: 12px 16px; }
   .cw-search-dialog__input input { font-size: 18px; }
 }
+/* Short, one-shot entrances; no scroll listeners or hidden offscreen content. */
+@keyframes cw-page-appear { from { opacity: .35; } to { opacity: 1; } }
+@keyframes cw-content-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cw-menu-appear { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.cw-route-view { animation: cw-page-appear 220ms ease-out backwards; }
+.cw-home-hero > :is(.cw-home-eyebrow, h1, .cw-home-summary, .cw-home-description, .cw-home-search, .cw-home-actions),
+.cw-explorer__header, .cw-archive > header, .cw-contributor-page > header,
+.cw-page-meta, .cw-not-found > * {
+  animation: cw-content-appear var(--cw-motion-enter) var(--cw-ease-out) backwards;
+}
+.cw-home-summary { animation-delay: 45ms; }
+.cw-home-description { animation-delay: 80ms; }
+.cw-home-search { animation-delay: 115ms; }
+.cw-home-actions { animation-delay: 145ms; }
+.cw-result, .cw-archive-group, .cw-contributor-card {
+  animation: cw-content-appear 320ms var(--cw-ease-out) backwards;
+}
+:is(.cw-result, .cw-archive-group, .cw-contributor-card):nth-child(2) { animation-delay: 30ms; }
+:is(.cw-result, .cw-archive-group, .cw-contributor-card):nth-child(3) { animation-delay: 60ms; }
+:is(.cw-result, .cw-archive-group, .cw-contributor-card):nth-child(4) { animation-delay: 90ms; }
+:is(.cw-result, .cw-archive-group, .cw-contributor-card):nth-child(5) { animation-delay: 120ms; }
+:is(.cw-result, .cw-archive-group, .cw-contributor-card):nth-child(n+6) { animation-delay: 140ms; }
+.cw-nav-item.is-open .cw-nav-dropdown { animation: cw-menu-appear 180ms var(--cw-ease-out) backwards; }
+.cw-filter-panel button, .cw-search-close {
+  transition: color var(--cw-motion-fast), background-color var(--cw-motion-fast), border-color var(--cw-motion-fast), transform var(--cw-motion-fast) var(--cw-ease-out);
+}
+.cw-result, .cw-contributor-card, .cw-page-navigation a {
+  transition: transform 220ms var(--cw-ease-out), box-shadow 220ms ease, background-color var(--cw-motion-fast);
+}
+.cw-archive-list a { transition: background-color var(--cw-motion-fast); }
+.cw-archive-list b, .cw-home-actions a span { transition: transform 220ms var(--cw-ease-out); }
+.cw-home-search, .cw-explorer__search, .cw-archive > header label {
+  transition: box-shadow 220ms ease, border-color var(--cw-motion-fast), outline-color var(--cw-motion-fast);
+}
+.cw-home-search button, .cw-header__actions > button {
+  transition: transform var(--cw-motion-fast) var(--cw-ease-out), box-shadow var(--cw-motion-fast), background-color var(--cw-motion-fast), color var(--cw-motion-fast);
+}
+.cw-home-search button:active, .cw-header__actions > button:active, .cw-filter-panel button:active { transform: scale(.96); }
+@media (hover: hover) and (pointer: fine) {
+  .cw-result:hover, a.cw-contributor-card:hover, .cw-page-navigation a:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgb(0 0 0 / 7%); }
+  .cw-archive-list a:hover { background-color: color-mix(in srgb, var(--cw-accent) 3%, transparent); }
+  .cw-archive-list a:hover b, .cw-home-actions a:hover span { transform: translateX(3px); }
+}
+/* Keep the overlay mounted through its brief exit so focus/scroll cleanup runs once. */
+.cw-overlay-enter-active { transition: opacity 180ms ease; }
+.cw-overlay-leave-active { transition: opacity 140ms ease; }
+.cw-overlay-enter-active .cw-search-dialog { transition: transform 240ms var(--cw-ease-out), opacity 180ms ease; }
+.cw-overlay-leave-active .cw-search-dialog { transition: transform 140ms ease, opacity 140ms ease; }
+.cw-overlay-enter-from, .cw-overlay-leave-to { opacity: 0; }
+.cw-overlay-enter-from .cw-search-dialog { opacity: 0; transform: translateY(-8px) scale(.99); }
+.cw-overlay-leave-to .cw-search-dialog { opacity: 0; transform: translateY(-4px) scale(.995); }
+@media (max-width: 800px) {
+  .cw-nav.is-open { animation: cw-menu-appear 180ms var(--cw-ease-out) backwards; }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .cw-header, .cw-nav, .cw-nav-dropdown, .cw-home-search, .cw-explorer__search, .cw-archive > header label, .cw-search-dialog {
     background: var(--cw-surface);
@@ -417,5 +475,7 @@ a.cw-contributor-card:hover { box-shadow: 0 8px 28px rgb(0 0 0 / 7%); }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .cw-route-view, .cw-home-hero > *, .cw-explorer__header, .cw-archive > header, .cw-contributor-page > header, .cw-page-meta, .cw-not-found > *, .cw-result, .cw-archive-group, .cw-contributor-card, .cw-nav.is-open, .cw-nav-item.is-open .cw-nav-dropdown { animation: none !important; }
+  .cw-result:hover, a.cw-contributor-card:hover, .cw-page-navigation a:hover, .cw-archive-list a:hover b, .cw-home-actions a:hover span, .cw-home-search button:active, .cw-header__actions > button:active, .cw-filter-panel button:active { transform: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
