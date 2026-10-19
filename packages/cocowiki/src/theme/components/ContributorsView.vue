@@ -47,7 +47,7 @@ onMounted(async () => { records.value = await loadContentRecords() })
 <template>
   <div class="cw-contributor-page">
     <header>
-      <div><p class="cw-kicker">CONTRIBUTORS · 共建者</p><h1>贡献者</h1><p>每次在页面 Frontmatter 中署名，都会计入一次贡献。</p></div>
+      <div><h1>贡献者</h1><p>感谢每一位参与编写、整理与维护的伙伴。</p></div>
       <strong>{{ total }} <small>次贡献</small></strong>
     </header>
     <section class="cw-contributor-grid">

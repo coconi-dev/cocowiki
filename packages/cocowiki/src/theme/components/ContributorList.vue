@@ -19,7 +19,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   names: undefined,
   compact: false,
-  label: '本页记录者'
+  label: '贡献者'
 })
 
 const { frontmatter } = useData()
@@ -57,16 +57,16 @@ function profileUrl(person: Contributor) {
 </template>
 
 <style scoped>
-.cw-contributors { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 22px; }
-.cw-contributors__label { width: 100%; color: var(--cw-muted); font-size: .68rem; font-weight: 750; letter-spacing: .1em; }
-.cw-contributor { display: flex; align-items: center; gap: 9px; padding: 7px 11px 7px 7px; color: inherit; border: 1px solid var(--cw-border); border-radius: 999px; text-decoration: none; }
-a.cw-contributor:hover { border-color: var(--cw-accent); }
-.cw-contributor-avatar { width: 29px; height: 29px; object-fit: cover; border-radius: 50%; }
-.cw-contributor-avatar--fallback { display: grid; place-items: center; color: white; background: var(--cw-accent); font-size: .62rem; font-weight: 800; }
-strong, small { display: block; line-height: 1.25; }
-strong { font-size: .76rem; }
-small { color: var(--cw-muted); font-size: .62rem; }
-.compact { display: inline-flex; margin-top: 22px; }
-.compact .cw-contributor { padding: 3px 8px 3px 3px; border: 0; background: var(--cw-surface-soft); }
-.compact .cw-contributor-avatar { width: 23px; height: 23px; }
+.cw-contributors { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 24px; }
+.cw-contributors__label { width: 100%; color: var(--cw-muted); font-size: 13px; font-weight: 500; }
+.cw-contributor { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; color: inherit; border-radius: 12px; background: var(--cw-surface-soft); text-decoration: none; }
+a.cw-contributor:hover strong { color: var(--cw-accent); }
+.cw-contributor-avatar { width: 36px; height: 36px; object-fit: cover; border-radius: 50%; }
+.cw-contributor-avatar--fallback { display: grid; place-items: center; color: var(--cw-accent); background: var(--cw-accent-soft); font-size: 11px; font-weight: 600; }
+strong, small { display: block; line-height: 1.4; }
+strong { font-size: 13px; font-weight: 500; }
+small { margin-top: 2px; color: var(--cw-muted); font-size: 11px; }
+.compact { display: inline-flex; margin: 0; }
+.compact .cw-contributor { gap: 6px; padding: 0; background: none; }
+.compact .cw-contributor-avatar { width: 24px; height: 24px; }
 </style>

@@ -22,20 +22,19 @@ const allContributors = [...new Set(items.flatMap((item) => item.contributors))]
 <template>
   <div class="atlas">
     <header class="atlas-header">
-      <div><p class="cw-kicker">VUE PAGE EXAMPLE</p><h1>组件图鉴</h1><p>这是一个由静态 JSON 驱动的纯 Vue 页面，用来验证搜索、筛选与排序。</p></div>
+      <div><h1>组件图鉴</h1><p>浏览组件，找到适合你的内容呈现方式。</p></div>
       <strong>{{ filtered.length }} <small>项</small></strong>
     </header>
 
     <section class="atlas-toolbar" aria-label="图鉴筛选">
-      <label class="atlas-search"><span>⌕</span><input v-model="query" type="search" placeholder="搜索组件"></label>
+      <label class="atlas-search"><svg class="cw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="cw-sr-only">搜索组件</span><input v-model="query" type="search" placeholder="搜索组件"></label>
       <label><span>状态</span><select v-model="rarity"><option value="all">全部</option><option v-for="name in rarities" :key="name" :value="name">{{ rarityLabel[name] }}</option></select></label>
       <label><span>层级</span><select v-model="category"><option value="all">全部</option><option v-for="name in categories" :key="name" :value="name">{{ categoryLabel[name] }}</option></select></label>
       <label><span>排序</span><select v-model="sort"><option value="rarity">状态</option><option value="name">名称</option></select></label>
     </section>
 
     <section class="atlas-grid">
-      <article v-for="(item, index) in filtered" :key="item.id" class="atlas-card">
-        <span class="atlas-card__index">{{ String(index + 1).padStart(2, '0') }}</span>
+      <article v-for="item in filtered" :key="item.id" class="atlas-card">
         <div class="atlas-card__content">
           <div class="atlas-card__meta"><span>{{ categoryLabel[item.category] }}</span><b>{{ rarityLabel[item.rarity] }}</b></div>
           <h2>{{ item.name }}</h2>
@@ -46,36 +45,44 @@ const allContributors = [...new Set(items.flatMap((item) => item.contributors))]
       <div v-if="!filtered.length" class="cw-empty"><strong>没有符合条件的项目</strong><p>调整关键词或筛选条件再试一次。</p></div>
     </section>
 
-    <footer class="atlas-footer"><div><h2>页面维护者</h2><p>数据、逻辑和界面由三位机器人分别维护。</p></div><ContributorList :names="allContributors" /></footer>
+    <footer class="atlas-footer"><div><h2>页面维护者</h2><p>感谢参与数据、功能与界面维护的贡献者。</p></div><ContributorList :names="allContributors" /></footer>
   </div>
 </template>
 
 <style scoped>
-.atlas-header { display: flex; align-items: end; justify-content: space-between; gap: 30px; padding: 6px 0 24px; border-bottom: 1px solid var(--cw-border); }
-.atlas-header h1 { margin: 5px 0 3px; font-family: Georgia, "Noto Serif SC", serif; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.2; }
-.atlas-header p:last-child { max-width: 620px; margin: 0; color: var(--cw-muted); font-size: .9rem; }
-.atlas-header > strong { color: var(--cw-accent); font-family: Georgia, serif; font-size: 2.3rem; }
-.atlas-header > strong small { color: var(--cw-muted); font: 500 .7rem Inter, sans-serif; }
-.atlas-toolbar { position: sticky; top: 56px; z-index: 15; display: grid; grid-template-columns: 1fr repeat(3, 135px); margin-bottom: 18px; border: 1px solid var(--cw-border); border-top: 0; background: var(--cw-header); backdrop-filter: blur(8px); }
-.atlas-toolbar label { display: flex; align-items: center; min-height: 48px; padding: 0 13px; border-left: 1px solid var(--cw-border); }
-.atlas-toolbar label > span { margin-right: auto; color: var(--cw-muted); font-size: .68rem; font-weight: 700; }
-.atlas-toolbar select { max-width: 76px; color: var(--cw-text); border: 0; outline: 0; background: transparent; font-size: .76rem; }
-.atlas-toolbar .atlas-search { border-left: 0; }
-.atlas-search > span { color: var(--cw-accent) !important; font-size: 1.1rem !important; }
-.atlas-search input { min-width: 0; flex: 1; color: var(--cw-text); border: 0; outline: 0; background: transparent; }
-.atlas-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.atlas-card { display: grid; grid-template-columns: 44px 1fr; min-width: 0; padding: 16px; border: 1px solid var(--cw-border); border-radius: var(--cw-radius); background: var(--cw-surface); }
-.atlas-card:hover { border-color: var(--cw-accent); }
-.atlas-card__index { color: var(--cw-muted); font: .72rem Georgia, serif; }
-.atlas-card__meta { display: flex; justify-content: space-between; color: var(--cw-muted); font-size: .66rem; }
-.atlas-card__meta b { color: var(--cw-gold); }
-.atlas-card h2 { margin: 5px 0 3px; font-family: Georgia, "Noto Serif SC", serif; font-size: 1.06rem; }
-.atlas-card p { min-height: 2.8em; margin: 0; color: var(--cw-muted); font-size: .78rem; line-height: 1.5; }
-.atlas-card footer { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--cw-border); font-size: .66rem; }
+.atlas-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 36px; }
+.atlas-header h1 { margin: 0 0 16px; font-size: clamp(36px, 5vw, 56px); font-weight: 700; letter-spacing: -.045em; line-height: 1.12; }
+.atlas-header p { max-width: 620px; margin: 0; color: var(--cw-muted); font-size: 19px; }
+.atlas-header > strong { color: var(--cw-muted); font-size: 17px; font-weight: 400; white-space: nowrap; }
+.atlas-header > strong small { font-size: inherit; }
+.atlas-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 150px); gap: 8px; margin-bottom: 32px; }
+.atlas-toolbar label { display: flex; align-items: center; min-width: 0; min-height: 50px; gap: 12px; padding: 0 14px; border: 1px solid var(--cw-border-strong); border-radius: 12px; background: var(--cw-surface); }
+.atlas-toolbar label:focus-within { outline: 3px solid color-mix(in srgb, var(--cw-accent) 30%, transparent); border-color: var(--cw-accent); }
+.atlas-toolbar label > span { flex-shrink: 0; color: var(--cw-muted); font-size: 12px; }
+.atlas-toolbar select { width: 100%; min-width: 0; min-height: 44px; color: var(--cw-text); border: 0; outline: 0; background: transparent; font-size: 14px; }
+.atlas-search input { width: 100%; min-width: 0; min-height: 44px; color: var(--cw-text); border: 0; outline: 0; background: transparent; font-size: 14px; }
+.atlas-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.atlas-card { min-width: 0; padding: 32px; border-radius: var(--cw-radius); background: var(--cw-surface); }
+.atlas-card__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--cw-muted); font-size: 12px; }
+.atlas-card__meta b { color: var(--cw-muted); font-weight: 400; }
+.atlas-card h2 { margin: 16px 0 12px; font-size: 26px; font-weight: 600; letter-spacing: -.025em; }
+.atlas-card p { min-height: 3em; margin: 0; color: var(--cw-muted); font-size: 15px; line-height: 1.6; }
+.atlas-card footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--cw-border); font-size: 12px; }
 .atlas-card footer span { color: var(--cw-muted); }
-.atlas-footer { display: flex; align-items: center; justify-content: space-between; gap: 25px; margin-top: 34px; padding: 22px 0; border-top: 1px solid var(--cw-border); }
-.atlas-footer h2 { margin: 0; font-family: Georgia, "Noto Serif SC", serif; font-size: 1rem; }
-.atlas-footer p { margin: 2px 0 0; color: var(--cw-muted); font-size: .75rem; }
-@media (max-width: 760px) { .atlas-toolbar { position: static; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--cw-border); } .atlas-search { grid-column: 1 / -1; } .atlas-grid { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .atlas-header { align-items: start; flex-direction: column; } .atlas-toolbar label { border-bottom: 1px solid var(--cw-border); } .atlas-footer { align-items: start; flex-direction: column; } }
+.atlas-card footer strong { font-weight: 500; }
+.atlas-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--cw-border-strong); }
+.atlas-footer h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; letter-spacing: -.025em; }
+.atlas-footer p { margin: 0; color: var(--cw-muted); font-size: 14px; }
+.atlas-grid > .cw-empty { grid-column: 1 / -1; }
+@media (max-width: 850px) { .atlas-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); } .atlas-search { grid-column: 1 / -1; } }
+@media (max-width: 600px) {
+  .atlas-header { align-items: start; flex-direction: column; }
+  .atlas-header p { font-size: 17px; }
+  .atlas-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atlas-toolbar label { gap: 8px; padding: 0 10px; }
+  .atlas-toolbar label:last-child { grid-column: 1 / -1; }
+  .atlas-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .atlas-card { padding: 24px; }
+  .atlas-footer { align-items: start; flex-direction: column; }
+}
 </style>

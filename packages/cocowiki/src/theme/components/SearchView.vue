@@ -44,23 +44,22 @@ onMounted(async () => {
 <template>
   <div class="cw-explorer">
     <header class="cw-explorer__header">
-      <p class="cw-kicker">GLOBAL SEARCH · 全文检索</p>
-      <h1>从一个名字开始。</h1>
-      <div class="cw-explorer__search"><span>⌕</span><input v-model="query" autofocus type="search" placeholder="搜索标题、别名、标签与正文"></div>
+
+      <h1>搜索资料库</h1>
+      <div class="cw-explorer__search"><svg class="cw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><label class="cw-sr-only" for="page-search">搜索资料库</label><input id="page-search" v-model="query" autofocus type="search" placeholder="搜索标题、别名、标签与正文"></div>
     </header>
     <div class="cw-explorer__body">
-      <aside class="cw-filter-panel">
-        <p>筛选范围</p>
-        <button :class="{ active: type === 'all' }" @click="type = 'all'"><span>全部资料</span><b>{{ searchable.length }}</b></button>
-        <button v-for="name in types" :key="name" :class="{ active: type === name }" @click="type = name"><span>{{ name }}</span></button>
-      </aside>
+      <nav class="cw-filter-panel" aria-label="按分类筛选">
+        <button :class="{ active: type === 'all' }" :aria-pressed="type === 'all'" @click="type = 'all'"><span>全部资料</span><b>{{ searchable.length }}</b></button>
+        <button v-for="name in types" :key="name" :class="{ active: type === name }" :aria-pressed="type === name" @click="type = name"><span>{{ name }}</span></button>
+      </nav>
       <section class="cw-results">
-        <div class="cw-results__summary"><strong>{{ results.length }}</strong> 条结果 <span v-if="query">关于“{{ query }}”</span></div>
+        <div class="cw-results__summary" role="status"><strong>{{ results.length }}</strong> 条结果 <span v-if="query">关于“{{ query }}”</span></div>
         <a v-for="item in results" :key="item.id" class="cw-result" :href="withBase(item.route as string)">
-          <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span><small>{{ item.route }}</small></div>
+          <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span></div>
           <h2>{{ item.title }}</h2>
           <p>{{ item.description }}</p>
-          <blockquote v-if="query">命中：{{ matchSnippet(item as SearchResultRecord, query) }}</blockquote>
+          <blockquote v-if="query">{{ matchSnippet(item as SearchResultRecord, query) }}</blockquote>
         </a>
         <div v-if="!results.length" class="cw-empty"><strong>没有找到相关记录</strong><p>换一个名字、别名或更短的关键词试试。</p></div>
       </section>

@@ -9,7 +9,7 @@ const typeLabel = computed(() => [frontmatter.value.category, frontmatter.value.
 
 <template>
   <header class="cw-page-meta">
-    <div v-if="typeLabel" class="cw-eyebrow"><span></span>{{ typeLabel }}</div>
+    <div v-if="typeLabel" class="cw-eyebrow">{{ typeLabel }}</div>
     <h1>{{ frontmatter.title }}</h1>
     <p v-if="frontmatter.description" class="cw-page-description">{{ frontmatter.description }}</p>
     <div v-if="frontmatter.tags?.length" class="cw-tags">

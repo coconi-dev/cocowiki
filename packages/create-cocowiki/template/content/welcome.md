@@ -1,6 +1,6 @@
 ---
 title: 欢迎使用 CoCoWiki
-description: 把散落的故事，慢慢收进这里。
+description: 了解内容编写、组件使用与站点配置。
 type: guide
 category: 使用指南
 tags:

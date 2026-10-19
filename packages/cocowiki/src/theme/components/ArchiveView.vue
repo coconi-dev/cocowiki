@@ -28,15 +28,15 @@ onMounted(async () => { records.value = await loadContentRecords() })
 <template>
   <div class="cw-archive">
     <header>
-      <div><p class="cw-kicker">ARCHIVE INDEX · 全部词条</p><h1>归档索引</h1><p>按分类浏览 {{ archive.length }} 份记录，或直接输入名称。</p></div>
-      <label><span>⌕</span><input v-model="query" type="search" placeholder="在归档中筛选"></label>
+      <div><h1>浏览全部资料。</h1><p>按分类浏览 {{ archive.length }} 份记录，或直接输入名称。</p></div>
+      <label><svg class="cw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="cw-sr-only">在归档中筛选</span><input v-model="query" type="search" placeholder="在归档中筛选"></label>
     </header>
-    <section v-for="([name, items], groupIndex) in groups" :key="name" class="cw-archive-group">
-      <div class="cw-archive-group__title"><span>0{{ groupIndex + 1 }}</span><h2>{{ name }}</h2><small>{{ items?.length }} ENTRIES</small></div>
+    <section v-for="([name, items]) in groups" :key="name" class="cw-archive-group">
+      <div class="cw-archive-group__title"><h2>{{ name }}</h2><small>{{ items.length }} 个条目</small></div>
       <div class="cw-archive-list">
         <a v-for="item in items" :key="item.route" :href="withBase(item.route)">
           <div><strong>{{ item.title }}</strong><span v-if="item.aliases?.length">又名 {{ item.aliases.join('、') }}</span></div>
-          <p>{{ item.description }}</p><b>↗</b>
+          <p>{{ item.description }}</p><b aria-hidden="true">›</b>
         </a>
       </div>
     </section>

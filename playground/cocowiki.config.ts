@@ -20,12 +20,6 @@ export default defineCocoWikiConfig({
       ]
     }
   ],
-  home: {
-    visual: {
-      image: '/cocowiki-logo.png',
-      labels: ['Markdown', 'Vue', 'Search', 'Static', 'Theme', 'Archive']
-    }
-  },
   search: { enabled: true },
   markdown: { spoiler: true, wikiLink: true },
   content: {

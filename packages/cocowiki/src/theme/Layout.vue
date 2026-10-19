@@ -87,7 +87,7 @@ onUnmounted(() => {
 <template>
   <div class="cw-site">
     <SiteHeader @open-search="searchOpen = true" />
-    <main :key="route.path" class="cw-main">
+    <main :key="route.path" :class="['cw-main', `is-${layout}`]">
       <Suspense :timeout="0">
         <template #default>
           <div class="cw-route-view">
