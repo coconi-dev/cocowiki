@@ -48,9 +48,9 @@ onMounted(async () => { records.value = await loadContentRecords() })
   <div class="cw-contributor-page">
     <header>
       <div><h1>贡献者</h1><p>感谢每一位参与编写、整理与维护的伙伴。</p></div>
-      <strong>{{ total }} <small>次贡献</small></strong>
+      <strong>{{ entries.length }} 位贡献者<span aria-hidden="true"> · </span>{{ total }} 次贡献</strong>
     </header>
-    <section class="cw-contributor-grid">
+    <section class="cw-contributor-grid" aria-label="贡献者名单">
       <component
         :is="profileUrl(person) ? 'a' : 'article'"
         v-for="person in entries"
@@ -62,7 +62,7 @@ onMounted(async () => { records.value = await loadContentRecords() })
       >
         <img v-if="person.avatar" :src="withBase(person.avatar)" alt="">
         <span v-else>{{ person.initials || person.name.slice(0, 2).toUpperCase() }}</span>
-        <div><h2>{{ person.name }}</h2><p>{{ person.role || '贡献者' }}</p></div>
+        <div class="cw-contributor-card__profile"><h2>{{ person.name }}</h2><p v-if="person.role">{{ person.role }}</p></div>
         <b>{{ person.count }}<small>次</small></b>
       </component>
     </section>
