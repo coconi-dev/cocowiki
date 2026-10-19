@@ -1,6 +1,7 @@
-import { existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { relative, resolve } from 'node:path'
+import { basename, relative, resolve } from 'node:path'
 import { defineConfig, type UserConfig } from 'vitepress'
 import { createLogger, type Plugin } from 'vite'
 import type { CocoWikiConfig } from '../config.ts'
@@ -44,12 +45,15 @@ function contentPlugin(
   config: CocoWikiConfig,
   contentDir: string,
   dataDir: string,
-  initialRecords: SearchRecord[]
+  initialRecords: SearchRecord[],
+  projectRoot: string
 ): Plugin {
   const records = initialRecords
   const resolvedConfigId = `\0${CONFIG_ID}`
   const resolvedContributorsId = `\0${CONTRIBUTORS_ID}`
   const contributorsFile = resolve(dataDir, 'contributors.json')
+  const projectId = createHash('sha256').update(realpathSync(projectRoot)).digest('hex')
+  let cleanup = () => {}
 
   async function refresh() {
     const nextRecords = await scanContent(contentDir, config.search)
@@ -71,6 +75,12 @@ function contentPlugin(
     },
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
+        if (request.url?.split('?')[0]?.endsWith('/__cocowiki/status')) {
+          response.setHeader('Content-Type', 'application/json; charset=utf-8')
+          response.setHeader('Cache-Control', 'no-store')
+          response.end(JSON.stringify({ pid: process.pid, projectId, token: process.env.COCOWIKI_DEV_INSTANCE }))
+          return
+        }
         if (!request.url?.split('?')[0]?.endsWith('/search-index.json')) return next()
         response.statusCode = 200
         response.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -104,7 +114,15 @@ function contentPlugin(
       server.watcher.on('add', refreshContributors)
       server.watcher.on('change', refreshContributors)
       server.watcher.on('unlink', refreshContributors)
+      cleanup = () => {
+        clearTimeout(refreshTimer)
+        for (const event of ['add', 'change', 'unlink']) {
+          server.watcher.off(event, refreshContent)
+          server.watcher.off(event, refreshContributors)
+        }
+      }
     },
+    closeBundle() { cleanup() },
     generateBundle() {
       this.emitFile({ type: 'asset', fileName: 'search-index.json', source: JSON.stringify(records) })
     }
@@ -113,9 +131,12 @@ function contentPlugin(
 
 export async function createVitePressConfig(
   config: CocoWikiConfig,
-  projectRoot: string
+  projectRoot: string,
+  runtimeRoot?: string
 ): Promise<UserConfig> {
-  const paths = resolveProjectPaths(projectRoot, config)
+  if (!config.title) throw new Error('配置文件必须提供 title。')
+  const paths = resolveProjectPaths(projectRoot, config, runtimeRoot)
+  if (!existsSync(paths.contentDir)) throw new Error(`内容目录不存在：${paths.contentDir}`)
   const records = await scanContent(paths.contentDir, config.search)
   const requestedBase = config.base || '/'
   const base = `/${requestedBase.replace(/^\/+|\/+$/g, '')}${requestedBase === '/' ? '' : '/'}`
@@ -131,7 +152,7 @@ export async function createVitePressConfig(
     srcDir: paths.runtimeRoot,
     cleanUrls: true,
     outDir: paths.outDir,
-    cacheDir: resolve(projectRoot, '.cocowiki/cache'),
+    cacheDir: resolve(projectRoot, '.cocowiki/cache', basename(paths.runtimeRoot)),
     lastUpdated: true,
     head: [
       ['link', { rel: 'icon', type: faviconType, href: `${base}${favicon.replace(/^\//, '')}` }],
@@ -141,7 +162,10 @@ export async function createVitePressConfig(
     vite: {
       customLogger,
       publicDir: paths.publicDir,
-      plugins: [contentPlugin(config, paths.contentDir, paths.dataDir, records)],
+      // A cold dependency crawl must not leave pending transforms blocking a
+      // complete server replacement after a config change.
+      optimizeDeps: { include: ['cocowiki > minisearch'], holdUntilCrawlEnd: false },
+      plugins: [contentPlugin(config, paths.contentDir, paths.dataDir, records, projectRoot)],
       server: { fs: { allow: [projectRoot, resolve(import.meta.dirname, '../..')] } },
       resolve: {
         alias: {

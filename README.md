@@ -89,7 +89,10 @@ pnpm build
 pnpm preview
 pnpm typecheck
 pnpm check
+pnpm test:dev
 ```
+
+同一项目只运行一个开发服务；重复执行 `pnpm dev` 会确认已有实例并显示预览地址，正常退出。首次启动占用当前终端，使用 Ctrl+C 关闭后即可重新启动；端口被其他服务占用时不会自动切换端口。开发、构建和静态预览使用独立的内部运行目录，可在开发服务运行时执行构建。
 
 ## 页面与内容约定
 

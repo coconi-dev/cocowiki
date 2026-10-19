@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import fg from 'fast-glob'
+import { acquireDevInstance } from './dev-instance.mjs'
 import { existsSync } from 'node:fs'
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfigFromFile } from 'vite'
-import { build, createServer, serve } from 'vitepress'
+import { build, createServer, disposeMdItInstance, serve } from 'vitepress'
 
 const VERSION = JSON.parse(await readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')).version
 const COLOR = { reset: '\x1b[0m', dim: '\x1b[2m', cyan: '\x1b[36m', green: '\x1b[32m', yellow: '\x1b[33m', red: '\x1b[31m', violet: '\x1b[38;5;141m' }
@@ -78,16 +79,17 @@ function previewUrl(serverUrl, requestedBase = '/') {
 }
 
 async function readProjectConfig() {
-  if (!existsSync(configFile)) fail('未找到 cocowiki.config.ts。')
+  if (!existsSync(configFile)) throw new Error('未找到 cocowiki.config.ts。')
   const loaded = await loadConfigFromFile({ command: command === 'build' ? 'build' : 'serve', mode: command === 'build' ? 'production' : 'development' }, configFile, projectRoot)
-  if (!loaded?.config?.title) fail('配置文件必须提供 title。')
+  if (!loaded?.config?.title) throw new Error('配置文件必须提供 title。')
   return loaded.config
 }
 
 function resolvePaths(config) {
   const directories = config.directories || {}
   return {
-    runtimeRoot: resolve(projectRoot, '.cocowiki/site'),
+    // Builds and previews must never rewrite a running dev server's sources.
+    runtimeRoot: resolve(projectRoot, `.cocowiki/${command === 'dev' ? 'site' : command}`),
     contentDir: resolve(projectRoot, directories.content || 'content'),
     componentsDir: resolve(projectRoot, directories.components || 'components')
   }
@@ -153,7 +155,7 @@ async function prepareRuntime(config, { clean = true, syncContent = true } = {})
   }
 
   const configImport = pathForImport(configDirectory, configFile)
-  await writeIfChanged(resolve(configDirectory, 'config.mts'), `import userConfig from ${JSON.stringify(configImport)}\nimport { createVitePressConfig } from 'cocowiki/runtime'\nexport default createVitePressConfig(userConfig, ${JSON.stringify(projectRoot)})\n`)
+  await writeIfChanged(resolve(configDirectory, 'config.mts'), `import userConfig from ${JSON.stringify(configImport)}\nimport { createVitePressConfig } from 'cocowiki/runtime'\nexport default createVitePressConfig(userConfig, ${JSON.stringify(projectRoot)}, ${JSON.stringify(paths.runtimeRoot)})\n`)
 
   const selectedTheme = config.theme?.entry
     ? pathForImport(themeDirectory, resolve(projectRoot, config.theme.entry))
@@ -193,6 +195,15 @@ if (!new Set(['dev', 'build', 'preview']).has(command)) {
 }
 
 try {
+  const instance = command === 'dev' ? await acquireDevInstance(projectRoot) : undefined
+  if (instance?.kind === 'existing') {
+    log.info(`开发服务已在运行：${instance.url}（PID ${instance.pid}）`)
+    process.exit(0)
+  }
+  if (instance?.kind === 'owner') {
+    process.env.COCOWIKI_DEV_INSTANCE = instance.token
+    process.once('exit', () => instance.release())
+  }
   let config = await readProjectConfig()
   const runtimeRoot = await prepareRuntime(config)
   const options = parseOptions(process.argv.slice(3))
@@ -208,80 +219,126 @@ try {
     log.info(`CoCoWiki v${VERSION} · 静态预览`)
     await serve({ root: runtimeRoot, port: options.port, host: options.host })
   } else {
-    const server = await createServer(runtimeRoot, options)
-    await server.listen()
-    let refreshTimer
-    let refreshing = false
-    let refreshQueued = false
-    const changedFiles = new Set()
-    let configChanged = false
-    let componentsChanged = false
+    let server
+    let stopSession = async () => {}
+    let restartPromise
+    let stopping = false
 
-    const watchProjectPaths = () => {
-      const paths = resolvePaths(config)
-      server.watcher.add([paths.contentDir, paths.componentsDir, configFile])
-      return paths
-    }
-    let watchedPaths = watchProjectPaths()
+    async function startDevServer(projectConfig, root) {
+      // VitePress disposes its Markdown renderer on config changes. Its
+      // recreation callback must replace the whole server, not call Vite's
+      // restart(), which would retain the old VitePress plugin closures.
+      let disposed = false
+      const activeServer = await createServer(root, { ...options, strictPort: true }, () => {
+        // Late events from a closed session must not restart its replacement.
+        if (disposed) return Promise.resolve()
+        return restartDevServer()
+      })
+      server = activeServer
+      const paths = resolvePaths(projectConfig)
+      const changedFiles = new Set()
+      let componentsChanged = false
+      let refreshTimer
+      let refreshPromise
 
-    const refreshRuntime = async () => {
-      if (refreshing) {
-        refreshQueued = true
-        return
+      const scheduleRefresh = () => {
+        clearTimeout(refreshTimer)
+        refreshTimer = setTimeout(() => void refreshRuntime(), 80)
       }
-      refreshing = true
-      try {
-        if (configChanged) {
-          configChanged = false
+      const refreshRuntime = async () => {
+        if (disposed || refreshPromise) return
+        refreshPromise = (async () => {
+          if (componentsChanged) {
+            componentsChanged = false
+            await prepareRuntime(projectConfig, { clean: false, syncContent: false })
+          }
+          const files = [...changedFiles]
+          changedFiles.clear()
+          await Promise.all(files.map((file) => syncContentFile(paths, file)))
+        })()
+        try {
+          await refreshPromise
+        } catch (error) {
+          log.error(error instanceof Error ? error.message : String(error))
+        } finally {
+          refreshPromise = undefined
+          if (!disposed && (componentsChanged || changedFiles.size)) scheduleRefresh()
+        }
+      }
+
+      const onProjectChange = (event, file) => {
+        if (disposed) return
+        if (file === configFile) {
+          // The VitePress config dependency watcher also requests a restart.
+          // Both paths share one promise and the old session cancels its timer.
+          clearTimeout(refreshTimer)
+          refreshTimer = setTimeout(() => {
+            void restartDevServer().catch((error) => log.error(error instanceof Error ? error.message : String(error)))
+          }, 80)
+          return
+        }
+        if (isInside(paths.componentsDir, file)) {
+          if (event !== 'add' && event !== 'unlink') return
+          componentsChanged = true
+        } else if (isInside(paths.contentDir, file)) {
+          if (!['add', 'change', 'unlink'].includes(event)) return
+          changedFiles.add(file)
+        } else return
+        scheduleRefresh()
+      }
+      activeServer.watcher.add([paths.contentDir, paths.componentsDir, configFile])
+      activeServer.watcher.on('all', onProjectChange)
+      stopSession = async () => {
+        disposed = true
+        clearTimeout(refreshTimer)
+        activeServer.watcher.off('all', onProjectChange)
+        // Drain pending writes before deleting or rebuilding runtime files.
+        await refreshPromise?.catch(() => {})
+        await activeServer.close()
+      }
+      await activeServer.listen()
+      const address = activeServer.httpServer?.address()
+      const port = typeof address === 'object' && address ? address.port : options.port || 5173
+      const localUrl = activeServer.resolvedUrls?.local[0] || `http://localhost:${port}/`
+      instance.update('ready', previewUrl(localUrl, projectConfig.base))
+    }
+
+    function restartDevServer() {
+      if (stopping) return Promise.resolve()
+      if (!restartPromise) {
+        restartPromise = (async () => {
           const nextConfig = await readProjectConfig()
-          const nextPaths = resolvePaths(nextConfig)
-          const directoriesChanged = nextPaths.contentDir !== watchedPaths.contentDir || nextPaths.componentsDir !== watchedPaths.componentsDir
+          if (!existsSync(resolvePaths(nextConfig).contentDir)) throw new Error('配置的内容目录不存在。')
+          const directoriesChanged = resolvePaths(config).contentDir !== resolvePaths(nextConfig).contentDir
+          instance.update('restarting')
+          await stopSession()
+          disposeMdItInstance()
           config = nextConfig
-          await prepareRuntime(config, { clean: directoriesChanged, syncContent: directoriesChanged })
-          watchedPaths = watchProjectPaths()
-          if (directoriesChanged) changedFiles.clear()
-          log.info('配置已更新')
-        }
-        if (componentsChanged) {
-          componentsChanged = false
-          await prepareRuntime(config, { clean: false, syncContent: false })
-        }
-        const files = [...changedFiles]
-        changedFiles.clear()
-        await Promise.all(files.map((file) => syncContentFile(watchedPaths, file)))
-      } catch (error) {
-        log.error(error instanceof Error ? error.message : String(error))
-      } finally {
-        refreshing = false
-        if (refreshQueued) {
-          refreshQueued = false
-          void refreshRuntime()
-        }
+          // Preserve generated config/theme files on ordinary restarts. Deleting
+          // them produces redundant watcher events and can trigger a loop.
+          const nextRoot = await prepareRuntime(config, { clean: directoriesChanged })
+          await startDevServer(config, nextRoot)
+          log.success('配置已更新，开发服务已重建')
+        })().finally(() => { restartPromise = undefined })
       }
+      return restartPromise
     }
 
-    server.watcher.on('all', (event, file) => {
-      if (file === configFile) configChanged = true
-      else if (isInside(watchedPaths.componentsDir, file)) {
-        // Existing components are already part of Vite's module graph. Only a
-        // changed file list requires regenerating the global registration entry.
-        if (event === 'add' || event === 'unlink') componentsChanged = true
-        else return
-      } else if (isInside(watchedPaths.contentDir, file)) {
-        if (event === 'add' || event === 'change' || event === 'unlink') changedFiles.add(file)
-        else return
-      }
-      else return
-      clearTimeout(refreshTimer)
-      refreshTimer = setTimeout(() => void refreshRuntime(), 80)
-    })
+    await startDevServer(config, runtimeRoot)
     const serverUrl = server.resolvedUrls?.local[0] || `http://localhost:${options.port || 5173}/`
     const url = previewUrl(serverUrl, config.base)
     console.log('')
     log.info(`CoCoWiki v${VERSION}`)
     log.success(`本地预览：${url}`)
     console.log('')
-    const close = async () => { await server.close(); process.exit(0) }
+    const close = async () => {
+      stopping = true
+      instance.update('stopping')
+      await restartPromise?.catch(() => {})
+      await stopSession()
+      disposeMdItInstance()
+      process.exit(0)
+    }
     process.on('SIGINT', close)
     process.on('SIGTERM', close)
   }

@@ -11,11 +11,11 @@ export interface CocoWikiProjectPaths {
   outDir: string
 }
 
-export function resolveProjectPaths(projectRoot: string, config: CocoWikiConfig): CocoWikiProjectPaths {
+export function resolveProjectPaths(projectRoot: string, config: CocoWikiConfig, runtimeRoot = resolve(projectRoot, '.cocowiki/site')): CocoWikiProjectPaths {
   const directories = config.directories || {}
   return {
     projectRoot,
-    runtimeRoot: resolve(projectRoot, '.cocowiki/site'),
+    runtimeRoot,
     contentDir: resolve(projectRoot, directories.content || 'content'),
     componentsDir: resolve(projectRoot, directories.components || 'components'),
     dataDir: resolve(projectRoot, directories.data || 'data'),
