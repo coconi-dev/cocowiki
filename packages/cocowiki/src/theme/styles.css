@@ -246,6 +246,14 @@ kbd { padding: 2px 6px; color: var(--cw-muted); border: 1px solid var(--cw-borde
 .cw-outline { padding-left: 20px; border-left: 1px solid var(--cw-border); }
 .cw-outline > p, .cw-content-sidebar > p { margin: 0 0 16px; font-size: 13px; font-weight: 600; }
 .cw-outline a, .cw-content-sidebar a { display: block; padding: 6px 0; color: var(--cw-muted); font-size: 13px; line-height: 1.5; }
+.cw-outline a[aria-current=location] { color: var(--cw-accent); font-weight: 600; }
+.cw-inline-outline { display: none; margin: var(--cw-space-4) 0; border: 1px solid var(--cw-border); border-radius: var(--cw-radius-md); background: var(--cw-surface); }
+.cw-inline-outline summary { min-height: var(--cw-control-height); padding: var(--cw-space-3) var(--cw-space-4); cursor: pointer; font-size: var(--cw-font-small); font-weight: 600; }
+.cw-inline-outline summary span { margin-left: var(--cw-space-2); color: var(--cw-muted); font-weight: 400; }
+.cw-inline-outline nav { max-height: 45svh; overflow-y: auto; padding: 0 var(--cw-space-4) var(--cw-space-3); }
+.cw-inline-outline a { display: block; min-height: var(--cw-control-height); padding: var(--cw-space-2) 0; color: var(--cw-muted); font-size: var(--cw-font-small); overflow-wrap: anywhere; }
+.cw-inline-outline .level-3 { padding-left: var(--cw-space-4); }
+.cw-inline-outline a[aria-current=location] { color: var(--cw-accent); font-weight: 600; }
 .cw-outline a:hover, .cw-content-sidebar a:hover, .cw-content-sidebar a.active { color: var(--cw-accent); }
 .cw-outline .level-3 { padding-left: 12px; }
 .cw-prose { min-width: 0; padding-top: 14px; color: var(--cw-text-soft); font-size: 17px; line-height: 1.8; overflow-wrap: anywhere; }
@@ -384,6 +392,7 @@ a.cw-contributor-card:hover { border-color: var(--cw-border-strong); }
   .cw-doc-shell.is-outline::before, .cw-doc-shell.is-light::after { display: none; }
   .cw-doc-shell.is-outline .cw-doc, .cw-doc-shell.is-light .cw-doc { grid-column: auto; }
   .cw-outline, .cw-content-sidebar { display: none; }
+  .cw-inline-outline { display: block; }
 }
 @media (max-width: 800px) {
   .cw-header__inner { gap: 12px; padding: 0 20px; }

@@ -106,6 +106,7 @@ onUnmounted(() => {
               <article class="cw-doc">
                 <PageMeta />
                 <PageStatus />
+                <PageOutline v-if="sidebar !== 'none' && (frontmatter.outline ?? config.content?.outline) !== false" variant="inline" :headers="page.headers" />
                 <component :is="route.component" class="cw-prose" v-bind="site.contentProps" />
                 <PageRelations />
                 <PageNavigation v-if="showPrevNext" />
