@@ -29,7 +29,11 @@ try {
   for (const relativeFile of ['cocowiki.config.ts', 'content/index.md']) {
     const filename = resolve(targetDirectory, relativeFile)
     const source = await readFile(filename, 'utf8')
-    await writeFile(filename, source.replaceAll('__COCOWIKI_SITE_NAME__', siteName))
+    const escaped = JSON.stringify(siteName)
+    const result = relativeFile.endsWith('.ts')
+      ? source.replaceAll("'__COCOWIKI_SITE_NAME__'", escaped)
+      : source.replaceAll('__COCOWIKI_SITE_NAME__', escaped)
+    await writeFile(filename, result)
   }
 
   console.log(`\nCoCoWiki 已创建：${targetDirectory}\n`)
