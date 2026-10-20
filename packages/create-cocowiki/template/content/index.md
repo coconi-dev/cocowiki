@@ -14,6 +14,9 @@ hero:
       text: 使用指南
       link: /welcome
     - theme: alt
+      text: 词条示例
+      link: /harbor/
+    - theme: alt
       text: 浏览归档
       link: /archive
   note: 由 CoCoWiki 构建

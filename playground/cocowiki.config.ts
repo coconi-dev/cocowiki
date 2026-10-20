@@ -14,6 +14,9 @@ export default defineCocoWikiConfig({
       text: '探索',
       link: '/atlas',
       items: [
+        { text: '雾灯港 · 地点', link: '/harbor/' },
+        { text: '岑舟 · 人物', link: '/cen-zhou' },
+        { text: '巡灯会 · 组织', link: '/lantern-watch' },
         { text: '组件图鉴', link: '/atlas' },
         { text: '归档索引', link: '/archive' },
         { text: '贡献者', link: '/contributors' }

@@ -7,5 +7,6 @@
   "type": "special",
   "category": "功能示例",
   "tags": ["Vue", "筛选", "静态数据"],
+  "related": ["欢迎使用 CoCoWiki"],
   "contributors": ["杰登", "皙折", "卡卡"]
 }
