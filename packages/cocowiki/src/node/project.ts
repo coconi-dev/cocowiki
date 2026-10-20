@@ -23,3 +23,8 @@ export function resolveProjectPaths(projectRoot: string, config: CocoWikiConfig,
     outDir: resolve(projectRoot, directories.out || 'dist')
   }
 }
+
+export type RuntimeMode = 'dev' | 'build' | 'preview'
+export function runtimePath(projectRoot: string, mode: RuntimeMode) {
+  return resolve(projectRoot, '.cocowiki', mode === 'dev' ? 'site' : mode)
+}

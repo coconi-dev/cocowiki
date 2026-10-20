@@ -16,6 +16,7 @@
     "typecheck": "pnpm --dir packages/cocowiki typecheck",
     "check": "pnpm typecheck && pnpm build",
     "test:navigation": "node --test tests/page-navigation.test.mjs",
-    "test:dev": "pnpm --dir packages/cocowiki build:package && node --test tests/dev-lifecycle.test.mjs"
+    "test:dev": "pnpm --dir packages/cocowiki build:package && node --test tests/dev-lifecycle.test.mjs",
+    "test:content": "node --test tests/content-model.test.mjs tests/content-store.test.mjs tests/contributors.test.mjs tests/scaffold.test.mjs"
   }
 }

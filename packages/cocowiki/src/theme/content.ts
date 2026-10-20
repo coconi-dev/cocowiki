@@ -1,41 +1,54 @@
+import { computed, onMounted, readonly, shallowReadonly, shallowRef, ref } from 'vue'
 import { withBase } from 'vitepress'
-import type { SearchRecord } from '../node/content'
+import type { ContentRecord } from '../shared/content'
 import { createSearch } from './search'
 
-let recordsPromise: Promise<SearchRecord[]> | undefined
-let searchPromise: Promise<{ records: SearchRecord[]; index: ReturnType<typeof createSearch> }> | undefined
+const records = shallowRef<ContentRecord[]>([])
+const loading = ref(false)
+const error = shallowRef<Error>()
+const version = ref(0)
+let requestVersion = 0
+let pending: Promise<ContentRecord[]> | undefined
+let loaded = false
+const searchable = computed(() => records.value.filter(record => record.searchable !== false && record.search !== false && !['home', 'search', 'archive', 'contributors'].includes(record.layout || '')))
+const index = computed(() => createSearch(searchable.value))
 
-function resetContentCache() {
-  recordsPromise = undefined
-  searchPromise = undefined
-}
-
-if (import.meta.hot) import.meta.hot.on('cocowiki:content-updated', resetContentCache)
-
-export function loadContentRecords() {
-  if (!recordsPromise) {
-    recordsPromise = fetch(withBase('/search-index.json'), { cache: 'no-store' })
-      .then((response) => {
-        if (!response.ok) throw new Error(`无法加载搜索索引：${response.status}`)
-        return response.json() as Promise<SearchRecord[]>
-      })
-      .catch((error) => {
-        recordsPromise = undefined
-        throw error
-      })
-  }
-  return recordsPromise
-}
-
-export function loadSearchContent() {
-  if (!searchPromise) {
-    searchPromise = loadContentRecords().then((allRecords) => {
-      const records = allRecords.filter((record) => record.search !== false && !['/', '/search', '/archive'].includes(record.route))
-      return { records, index: createSearch(records) }
-    }).catch((error) => {
-      searchPromise = undefined
-      throw error
+export function refreshContent(force = true): Promise<ContentRecord[]> {
+  if (!force && pending) return pending
+  if (!force && loaded) return Promise.resolve(records.value)
+  const current = ++requestVersion
+  loading.value = true
+  error.value = undefined
+  const task = fetch(withBase('/search-index.json'), { cache: 'no-store' })
+    .then(response => {
+      if (!response.ok) throw new Error(`无法加载内容索引：${response.status}`)
+      return response.json() as Promise<ContentRecord[]>
     })
-  }
-  return searchPromise
+    .then(next => {
+      if (current === requestVersion) {
+        // Build before committing so consumers never observe a broken index.
+        createSearch(next.filter(record => record.searchable !== false && record.search !== false))
+        records.value = next
+        loaded = true
+        version.value++
+      }
+      return next
+    })
+    .catch(caught => {
+      if (current === requestVersion) error.value = caught instanceof Error ? caught : new Error(String(caught))
+      throw caught
+    })
+    .finally(() => { if (current === requestVersion) { loading.value = false; pending = undefined } })
+  pending = task
+  return task
 }
+export function useContentStore() {
+  onMounted(() => { void refreshContent(false).catch(() => {}) })
+  return { records: shallowReadonly(records), searchable, index, loading: readonly(loading), error: readonly(error), version: readonly(version), retry: () => { void refreshContent().catch(() => {}) } }
+}
+export const loadContentRecords = () => refreshContent(false)
+export async function loadSearchContent() {
+  await loadContentRecords()
+  return { records: searchable.value, index: index.value }
+}
+if (import.meta.hot) import.meta.hot.on('cocowiki:content-updated', () => { void refreshContent().catch(() => {}) })

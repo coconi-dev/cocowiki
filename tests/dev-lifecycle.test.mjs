@@ -255,3 +255,93 @@ test('pnpm dev owns its terminal lifecycle and repeated invocation succeeds', {
   await once(socket, 'listening')
   await new Promise((done) => socket.close(done))
 })
+
+test('invalid replacement configs recover; source snapshot drives Vue discovery and Wiki links', { timeout: 90000 }, async (t) => {
+  const fixture = await mkdtemp(resolve(tmpdir(), 'cocowiki-recovery-'))
+  let dev
+  t.after(async () => {
+    if (dev?.process.exitCode === null) { const exited = once(dev.process, 'exit'); dev.process.kill('SIGTERM'); await exited }
+    await rm(fixture, { recursive: true, force: true })
+  })
+  await symlink(resolve(repository, 'playground/node_modules'), resolve(fixture, 'node_modules'), 'dir')
+  await mkdir(resolve(fixture, 'content'))
+  await mkdir(resolve(fixture, 'components'))
+  await mkdir(resolve(fixture, 'snippets'))
+  await writeFile(resolve(fixture, 'components/Chart.vue'), '<template><p>SOURCE_IMPORT_MARKER</p></template>')
+  await writeFile(resolve(fixture, 'snippets/part.md'), 'SOURCE_INCLUDE_MARKER\n')
+  await writeFile(resolve(fixture, 'content/index.md'), '# Home\n')
+  await writeFile(resolve(fixture, 'content/ref.md'), '---\ntitle: Reference\nupdated: 2024-01-02T12:00:00Z\n---\n[[Alias]]\n<script setup>\nimport Chart from "../components/Chart.vue"\n</script>\n<Chart />\n<!-- @include: ../snippets/part.md -->\n')
+  await writeFile(resolve(fixture, 'content/target.md'), '---\ntitle: Target\naliases: [Alias]\n---\n')
+  const configFile = resolve(fixture, 'cocowiki.config.ts')
+  const valid = { title: 'Recovery', base: '/wiki/', search: { exclude: ['hidden/**'] } }
+  const configure = config => writeFile(configFile, `export default ${JSON.stringify(config)}\n`)
+  await configure(valid)
+  const port = await freePort()
+  const origin = `http://127.0.0.1:${port}/wiki`
+  dev = launch(['dev', '--host', '127.0.0.1', '--port', String(port)], fixture)
+  await waitForResponse(`${origin}/ref.md?import`, '/wiki/target', dev.output)
+  await waitForResponse(`${origin}/ref.md?import`, 'SOURCE_INCLUDE_MARKER', dev.output)
+  for (const [theme, pattern] of [
+    [{ entry: 'theme/missing.ts' }, /theme.entry/],
+    [{ styles: 'theme/missing.css' }, /theme.styles/],
+    [{ components: { Invalid: 'unknown.vue' } }, /未知主题组件/]
+  ]) {
+    const start = dev.output().length
+    await configure({ ...valid, theme })
+    await waitForOutput(dev.output, pattern, start)
+    await waitForResponse(`${origin}/ref.md?import`, '/wiki/target', dev.output)
+    await configure({ ...valid, title: `Repaired ${pattern.source}` })
+    await waitForResponse(`${origin}/@siteData`, `Repaired ${pattern.source}`, dev.output)
+  }
+  // Adding the missing file repairs the latest config without another config edit.
+  await configure({ ...valid, theme: { styles: 'theme/later.css' } })
+  await waitForOutput(dev.output, /later.css/)
+  await mkdir(resolve(fixture, 'theme'))
+  await writeFile(resolve(fixture, 'theme/later.css'), 'body { --repaired: 1; }')
+  await waitForResponse(`${origin}/@siteData`, 'Recovery', dev.output)
+
+  await writeFile(resolve(fixture, 'content/new.page.vue'), '<template>New Vue</template>')
+  await waitForResponse(`${origin}/search-index.json`, '"route":"/new"', dev.output)
+  await waitForResponse(`${origin}/new.md?import`, 'CocoPage', dev.output)
+  await writeFile(resolve(fixture, 'content/new.page.json'), '{"title":"New Vue","aliases":["NewAlias"]}')
+  await waitForResponse(`${origin}/search-index.json`, 'NewAlias', dev.output)
+  await rm(resolve(fixture, 'content/new.page.vue'))
+  await waitForResponse(`${origin}/search-index.json`, '"route":"/target"', dev.output)
+  const deadline = Date.now() + 10000
+  while (Date.now() < deadline) {
+    if (!(await (await fetch(`${origin}/search-index.json`)).text()).includes('"route":"/new"')) break
+    await delay(50)
+  }
+  assert.ok(!(await (await fetch(`${origin}/search-index.json`)).text()).includes('"route":"/new"'))
+  // Unchanged referring Markdown must be recompiled when the target alias moves.
+  await writeFile(resolve(fixture, 'content/target.md'), '---\ntitle: Target\naliases: [FormerAlias]\n---\n')
+  await waitForResponse(`${origin}/ref.md?import`, '/wiki/search?q=Alias', dev.output)
+  await writeFile(resolve(fixture, 'content/other.md'), '---\ntitle: Other\naliases: [Alias]\n---\n')
+  await waitForResponse(`${origin}/ref.md?import`, '/wiki/other', dev.output)
+
+  const start = dev.output().length
+  await writeFile(resolve(fixture, 'content/other.md'), '---\ntitle: Other\ntags: invalid\n---\n')
+  await waitForOutput(dev.output, /other.md.*tags/, start)
+  assert.ok((await (await fetch(`${origin}/search-index.json`)).text()).includes('"title":"Other"'))
+  await writeFile(resolve(fixture, 'content/other.md'), '---\ntitle: Recovered content\naliases: [Alias]\n---\n')
+  await waitForResponse(`${origin}/search-index.json`, 'Recovered content', dev.output)
+  await writeFile(resolve(fixture, 'content/guide.md'), '---\ntitle: Flat guide\n---\n')
+  await mkdir(resolve(fixture, 'content/guide'))
+  await writeFile(resolve(fixture, 'content/guide/index.md'), '---\ntitle: Directory guide\n---\n')
+  await waitForResponse(`${origin}/search-index.json`, '"route":"/guide/"', dev.output)
+  await writeFile(resolve(fixture, 'settings.ts'), 'export const title = "Dependency one"\n')
+  await writeFile(configFile, `import { title } from './settings'\nexport default { ...${JSON.stringify(valid)}, title }\n`)
+  await waitForResponse(`${origin}/@siteData`, 'Dependency one', dev.output)
+  await writeFile(resolve(fixture, 'settings.ts'), 'export const title = "Dependency two"\n')
+  await waitForResponse(`${origin}/@siteData`, 'Dependency two', dev.output)
+  const built = launch(['build'], fixture)
+  const [code] = await waitForExit(built.process, 30000)
+  assert.equal(code, 0, built.output())
+  const output = await readFile(resolve(fixture, 'dist/ref.html'), 'utf8')
+  assert.match(output, /SOURCE_IMPORT_MARKER/)
+  assert.match(output, /最后更新：2024\/1\/2/)
+  assert.match(output, /SOURCE_INCLUDE_MARKER/)
+  assert.match(output, /href="\/wiki\/other"/)
+  await readFile(resolve(fixture, 'dist/guide.html'))
+  await readFile(resolve(fixture, 'dist/guide/index.html'))
+})

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from 'vue'
+import { computed } from 'vue'
 import { withBase } from 'vitepress'
 import contributors from 'virtual:cocowiki-contributors'
-import type { SearchRecord } from '../../node/content'
-import { loadContentRecords } from '../content'
+import { useContentStore } from '../content'
+import ContentStatus from './ContentStatus.vue'
 import { useContributorContributionSources } from '../contributors'
 
 interface ContributorProfile {
@@ -15,12 +15,12 @@ interface ContributorProfile {
   github?: string
 }
 
-const records = shallowRef<SearchRecord[]>([])
+const { records, loading, error, retry } = useContentStore()
 const sources = useContributorContributionSources()
-const profiles = contributors as Record<string, ContributorProfile>
+const profiles = Object.assign(Object.create(null), contributors) as Record<string, ContributorProfile>
 
 const entries = computed(() => {
-  const counts: Record<string, number> = {}
+  const counts: Record<string, number> = Object.create(null)
   for (const record of records.value) {
     for (const name of new Set(record.contributors || [])) counts[name] = (counts[name] || 0) + 1
   }
@@ -41,7 +41,7 @@ function profileUrl(person: ContributorProfile) {
   return person.github.startsWith('http') ? person.github : `https://github.com/${person.github}`
 }
 
-onMounted(async () => { records.value = await loadContentRecords() })
+
 </script>
 
 <template>
@@ -50,6 +50,7 @@ onMounted(async () => { records.value = await loadContentRecords() })
       <div><h1>贡献者</h1><p>感谢每一位参与编写、整理与维护的伙伴。</p></div>
       <strong>{{ entries.length }} 位贡献者<span aria-hidden="true"> · </span>{{ total }} 次贡献</strong>
     </header>
+    <ContentStatus :loading="loading" :error="error" @retry="retry" />
     <section class="cw-contributor-grid" aria-label="贡献者名单">
       <component
         :is="profileUrl(person) ? 'a' : 'article'"

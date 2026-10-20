@@ -1,87 +1,79 @@
 import fg from 'fast-glob'
 import matter from 'gray-matter'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { relative, sep } from 'node:path'
-import type { CocoWikiPageMeta } from '../config.ts'
-
-export interface SearchRecord extends CocoWikiPageMeta {
-  id: string
-  route: string
-  content: string
-  excerpt: string
-}
+import { basename, relative, resolve } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import type { ContentPage } from '../shared/content'
+import { routeFromPath } from '../shared/routes'
+import { ContentError, validateMeta } from './validation'
+export type { ContentPage, ContentRecord, SearchRecord } from '../shared/content'
+const exec = promisify(execFile)
 
 function plainText(markdown: string) {
-  return markdown
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/\[\[([^\]]+)\]\]/g, '$1')
-    .replace(/[#>*_`~|:-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return markdown.replace(/```[\s\S]*?```/g, ' ').replace(/<[^>]+>/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/[#>*_`~|:-]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+async function gitTime(file: string): Promise<number | undefined> {
+  try {
+    const { stdout } = await exec('git', ['log', '-1', '--format=%ct', '--', basename(file)], { cwd: resolve(file, '..') })
+    return Number(stdout.trim()) > 0 ? Number(stdout.trim()) * 1000 : undefined
+  } catch { return undefined }
 }
 
-function routeFromFile(contentRoot: string, filename: string) {
-  const path = relative(contentRoot, filename).split(sep).join('/').replace(/(?:\.page\.json|\.md)$/, '')
-  return path === 'index' ? '/' : `/${path.replace(/\/index$/, '')}`
+/** Scan all real pages. Search globs only annotate search eligibility. */
+export async function scanContent(contentRoot: string, options: { include?: string[]; exclude?: string[] } = {}): Promise<ContentPage[]> {
+  const filenames = await fg(['**/*.md', '**/*.page.vue'], { cwd: contentRoot, onlyFiles: true })
+  const selected = new Set(await fg(options.include || ['**/*.md', '**/*.page.vue', '**/*.page.json'], { cwd: contentRoot, ignore: options.exclude || [] }))
+  const records: ContentPage[] = []
+  for (const path of filenames.sort()) {
+    const sourcePath = resolve(contentRoot, path)
+    const kind = path.endsWith('.page.vue') ? 'vue' : 'markdown'
+    const metadataPath = sourcePath.replace(/\.page\.vue$/, '.page.json')
+    let raw: unknown, content = '', sourceContent = '', heading: string | undefined
+    try {
+      if (kind === 'vue') raw = existsSync(metadataPath) ? JSON.parse(await readFile(metadataPath, 'utf8')) : {}
+      else {
+        sourceContent = await readFile(sourcePath, 'utf8')
+        const parsed = matter(sourceContent)
+        raw = parsed.data
+        content = plainText(parsed.content)
+        heading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim()
+      }
+    } catch (error) { throw new ContentError(kind === 'vue' ? metadataPath : sourcePath, 'metadata', String(error)) }
+    const meta = validateMeta(raw, kind === 'vue' ? metadataPath : sourcePath)
+    const route = routeFromPath(path)
+    const times = await Promise.all([gitTime(sourcePath), ...(kind === 'vue' && existsSync(metadataPath) ? [gitTime(metadataPath)] : [])])
+    const timestamp = Math.max(0, ...times.map(time => time || 0)) || undefined
+    records.push({
+      ...meta, id: route, route, sourcePath, kind, sourceContent, frontmatter: meta as Record<string, unknown>,
+      generatedPath: path.replace(/\.page\.vue$/, '.md'),
+      title: meta.title || heading || basename(path).replace(/(?:\.page\.vue|\.md)$/, ''),
+      layout: kind === 'vue' ? 'special' : meta.layout,
+      description: meta.description || '', tags: meta.tags || [], aliases: meta.aliases || [], contributors: meta.contributors || [],
+      content: kind === 'vue' ? meta.description || '' : content,
+      excerpt: meta.description || content.slice(0, 120),
+      searchable: meta.search !== false && (selected.has(path) || (kind === 'vue' && selected.has(path.replace(/\.page\.vue$/, '.page.json')))),
+      lastUpdated: meta.updated ? Date.parse(meta.updated) : timestamp
+    })
+  }
+  const routes = new Map<string, ContentPage>()
+  const names = new Map<string, ContentPage>()
+  for (const page of records) {
+    const prior = routes.get(page.route)
+    if (prior) throw new ContentError(page.sourcePath, 'route', `路由 ${page.route} 与 ${prior.sourcePath} 冲突`)
+    routes.set(page.route, page)
+    for (const name of new Set([page.title, ...(page.aliases || [])])) {
+      const previous = names.get(name)
+      if (previous && previous !== page) throw new ContentError(page.sourcePath, 'title/aliases', `名称“${name}”与 ${previous.sourcePath} 冲突`)
+      names.set(name, page)
+    }
+  }
+  return records.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
 }
 
-function recordFromMeta(filename: string, contentRoot: string, meta: Partial<CocoWikiPageMeta>, content = '') {
-  const route = routeFromFile(contentRoot, filename)
-  return {
-    id: route,
-    route,
-    title: meta.title || route.split('/').pop() || 'Untitled',
-    layout: meta.layout,
-    description: meta.description || '',
-    type: meta.type || '',
-    category: meta.category || '',
-    tags: meta.tags || [],
-    aliases: meta.aliases || [],
-    contributors: meta.contributors || [],
-    image: meta.image,
-    updated: meta.updated,
-    search: meta.search,
-    archive: meta.archive,
-    order: typeof meta.order === 'number' && Number.isFinite(meta.order) ? meta.order : undefined,
-    content,
-    excerpt: meta.description || content.slice(0, 120)
-  } satisfies SearchRecord
-}
-
-export async function scanContent(
-  contentRoot: string,
-  options: { include?: string[]; exclude?: string[] } = {}
-): Promise<SearchRecord[]> {
-  const filenames = await fg(options.include || ['**/*.md'], {
-    cwd: contentRoot,
-    absolute: true,
-    ignore: options.exclude || []
-  })
-
-  const pageMetadata = await fg('**/*.page.json', {
-    cwd: contentRoot,
-    absolute: true,
-    ignore: options.exclude || []
-  })
-
-  const records = await Promise.all(filenames.map(async (filename) => {
-    const source = await readFile(filename, 'utf8')
-    const parsed = matter(source)
-    const content = plainText(parsed.content)
-    const firstHeading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim()
-    const meta = parsed.data as Partial<CocoWikiPageMeta>
-
-    return recordFromMeta(filename, contentRoot, { ...meta, title: meta.title || firstHeading }, content)
-  }))
-
-  const vuePageRecords = await Promise.all(pageMetadata.map(async (filename) => {
-    const meta = JSON.parse(await readFile(filename, 'utf8')) as Partial<CocoWikiPageMeta>
-    return recordFromMeta(filename, contentRoot, meta, meta.description || '')
-  }))
-
-  return [...records, ...vuePageRecords]
-    .sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+export function publicRecords(pages: ContentPage[]) {
+  return pages.map(({ sourcePath, generatedPath, sourceContent, frontmatter, kind, ...record }) => record)
 }

@@ -44,12 +44,6 @@ function addSpoilerRule(md: any) {
 
 function addWikiLinkRule(md: any, records: SearchRecord[], base: string) {
   const prefix = base === '/' ? '' : base.replace(/\/$/, '')
-  const routes = new Map<string, string>()
-  for (const record of records) {
-    routes.set(record.title, record.route)
-    for (const alias of record.aliases || []) routes.set(alias, record.route)
-  }
-
   md.inline.ruler.before('link', 'cocowiki-wikilink', (state: any, silent: boolean) => {
     const start = state.pos
     if (state.src.slice(start, start + 2) !== '[[') return false
@@ -58,7 +52,8 @@ function addWikiLinkRule(md: any, records: SearchRecord[], base: string) {
     const name = state.src.slice(start + 2, end).trim()
     if (!name) return false
     if (!silent) {
-      const route = routes.get(name) || `/search?q=${encodeURIComponent(name)}`
+      const record = records.find(record => record.title === name || record.aliases?.includes(name))
+      const route = record?.route || `/search?q=${encodeURIComponent(name)}`
       const token = state.push('html_inline', '', 0)
       token.content = `<a class="cw-wikilink" href="${prefix}${route}">${md.utils.escapeHtml(name)}</a>`
     }

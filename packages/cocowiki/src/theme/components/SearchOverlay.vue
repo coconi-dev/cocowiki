@@ -1,20 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, withBase } from 'vitepress'
-import type { SearchRecord } from '../../node/content'
-import { loadSearchContent } from '../content'
-import { createSearch } from '../search'
+import { useContentStore } from '../content'
+import ContentStatus from './ContentStatus.vue'
 
 const emit = defineEmits<{ close: [] }>()
 const query = ref('')
-const loadFailed = ref(false)
 const dialog = ref<HTMLElement>()
 const input = ref<HTMLInputElement>()
 let previousFocus: HTMLElement | null = null
 let previousOverflow = ''
 const router = useRouter()
-const searchable = shallowRef<SearchRecord[]>([])
-const miniSearch = shallowRef<ReturnType<typeof createSearch>>()
+const { searchable, index: miniSearch, loading, error, retry } = useContentStore()
 const results = computed(() => {
   if (!query.value.trim()) return searchable.value.slice(0, 5)
   return miniSearch.value?.search(query.value, { combineWith: 'AND' }).slice(0, 6) || []
@@ -36,13 +33,6 @@ onMounted(async () => {
   window.addEventListener('keydown', keydown)
   await nextTick()
   input.value?.focus()
-  try {
-    const content = await loadSearchContent()
-    searchable.value = content.records
-    miniSearch.value = content.index
-  } catch {
-    loadFailed.value = true
-  }
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', keydown)
@@ -61,8 +51,8 @@ onUnmounted(() => {
       </div>
       <div class="cw-search-dialog__results">
         <button v-for="item in results" :key="item.route" @click="go(item.route)"><span>{{ item.category || item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.description }}</small></button>
-        <p v-if="loadFailed">搜索暂时不可用，请关闭后重试。</p>
-        <p v-else-if="!results.length">没有找到相关记录</p>
+        <ContentStatus :loading="loading" :error="error" @retry="retry" />
+        <p v-if="!loading && !error && !results.length">没有找到相关记录</p>
       </div>
       <button class="cw-search-dialog__all" @click="go(`/search?q=${encodeURIComponent(query)}`)">查看全部搜索结果 <span>→</span></button>
     </div>

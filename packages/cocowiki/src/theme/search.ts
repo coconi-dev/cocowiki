@@ -1,5 +1,5 @@
 import MiniSearch from 'minisearch'
-import type { SearchRecord } from '../node/content'
+import type { ContentRecord } from '../shared/content'
 
 export function tokenize(text: string) {
   const normalized = text.toLocaleLowerCase().trim()
@@ -9,7 +9,7 @@ export function tokenize(text: string) {
   return [...new Set([...words, ...pairs])]
 }
 
-export function createSearch(records: SearchRecord[]) {
+export function createSearch(records: ContentRecord[]) {
   const search = new MiniSearch({
     fields: ['title', 'aliases', 'tags', 'contributors', 'description', 'content'],
     storeFields: ['route', 'title', 'type', 'category', 'description', 'content', 'aliases', 'contributorNames'],

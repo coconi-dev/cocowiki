@@ -11,6 +11,6 @@ const { page } = useData()
   <footer class="cw-doc-footer">
     <a v-if="config.search?.enabled !== false" :href="withBase('/search')">返回搜索</a>
     <a :href="withBase('/archive')">浏览归档</a>
-    <span v-if="showLastUpdated && page.lastUpdated">最后更新：{{ new Date(page.lastUpdated).toLocaleDateString('zh-CN') }}</span>
+    <span v-if="showLastUpdated && page.lastUpdated != null">最后更新：{{ new Date(page.lastUpdated).toLocaleDateString('zh-CN') }}</span>
   </footer>
 </template>

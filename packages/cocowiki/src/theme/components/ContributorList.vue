@@ -23,7 +23,7 @@ const props = withDefaults(defineProps<{
 })
 
 const { frontmatter } = useData()
-const contributorMap = contributors as Record<string, Omit<Contributor, 'name'> & { name?: string }>
+const contributorMap = Object.assign(Object.create(null), contributors) as Record<string, Omit<Contributor, 'name'> & { name?: string }>
 const selected = computed<Contributor[]>(() => (props.names || frontmatter.value.contributors || []).map((key: string) => ({
   ...(contributorMap[key] || {}),
   name: contributorMap[key]?.name || key,

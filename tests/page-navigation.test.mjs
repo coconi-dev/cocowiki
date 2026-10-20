@@ -53,6 +53,7 @@ test('Markdown and Vue metadata retain valid order through scanning and serializ
   const content = resolve(fixture, 'content')
   await mkdir(content)
   await writeFile(resolve(content, 'intro.md'), '---\ntitle: Z intro\norder: 1\n---\n# Intro\n')
+  await writeFile(resolve(content, 'vue.page.vue'), '<template>Vue</template>')
   await writeFile(resolve(content, 'vue.page.json'), JSON.stringify({ title: 'A Vue', order: 2 }))
   await writeFile(resolve(content, 'invalid.md'), '---\ntitle: Invalid\norder: "0"\n---\n')
   const records = JSON.parse(JSON.stringify(await scanContent(content)))

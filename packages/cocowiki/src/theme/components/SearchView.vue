@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { withBase } from 'vitepress'
-import type { SearchRecord } from '../../node/content'
-import { loadSearchContent } from '../content'
-import { createSearch } from '../search'
+import type { ContentRecord } from '../../shared/content'
+import { useContentStore } from '../content'
+import ContentStatus from './ContentStatus.vue'
 
-type SearchResultRecord = SearchRecord & { contributorNames?: string[] }
+type SearchResultRecord = ContentRecord & { contributorNames?: string[] }
 
 const query = ref('')
 const type = ref('all')
-const searchable = shallowRef<SearchRecord[]>([])
-const miniSearch = shallowRef<ReturnType<typeof createSearch>>()
+const { searchable, index: miniSearch, loading, error, retry } = useContentStore()
 
 const types = computed(() => [...new Set(searchable.value.map((item) => item.category || item.type).filter((value): value is string => Boolean(value)))])
 const results = computed(() => {
@@ -33,11 +32,8 @@ function matchSnippet(item: SearchResultRecord, needle: string) {
   return contributorMatch ? `贡献者：${names.join('、')}` : snippet(item.content, needle)
 }
 
-onMounted(async () => {
+onMounted(() => {
   query.value = new URLSearchParams(location.search).get('q') || ''
-  const content = await loadSearchContent()
-  searchable.value = content.records
-  miniSearch.value = content.index
 })
 </script>
 
@@ -54,6 +50,7 @@ onMounted(async () => {
         <button v-for="name in types" :key="name" :class="{ active: type === name }" :aria-pressed="type === name" @click="type = name"><span>{{ name }}</span></button>
       </nav>
       <section class="cw-results">
+        <ContentStatus :loading="loading" :error="error" @retry="retry" />
         <div class="cw-results__summary" role="status"><strong>{{ results.length }}</strong> 条结果 <span v-if="query">关于“{{ query }}”</span></div>
         <a v-for="item in results" :key="item.id" class="cw-result" :href="withBase(item.route as string)">
           <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span></div>
@@ -61,7 +58,7 @@ onMounted(async () => {
           <p>{{ item.description }}</p>
           <blockquote v-if="query">{{ matchSnippet(item as SearchResultRecord, query) }}</blockquote>
         </a>
-        <div v-if="!results.length" class="cw-empty"><strong>没有找到相关记录</strong><p>换一个名字、别名或更短的关键词试试。</p></div>
+        <div v-if="!loading && !error && !results.length" class="cw-empty"><strong>没有找到相关记录</strong><p>换一个名字、别名或更短的关键词试试。</p></div>
       </section>
     </div>
   </div>

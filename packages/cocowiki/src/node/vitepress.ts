@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto'
 import { existsSync, realpathSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { basename, relative, resolve } from 'node:path'
+import { basename, resolve } from 'node:path'
 import { defineConfig, type UserConfig } from 'vitepress'
 import { createLogger, type Plugin } from 'vite'
 import type { CocoWikiConfig } from '../config.ts'
-import { scanContent, type SearchRecord } from './content.ts'
+import { scanContent, publicRecords, type ContentPage } from './content.ts'
 import { applyCocoWikiMarkdown } from './markdown.ts'
+import { snapshots } from './snapshot'
+import { validateConfig, validateContributors } from './validation'
+import { normalizeBase } from '../shared/routes'
 import { resolveProjectPaths } from './project.ts'
 
 const CONFIG_ID = 'virtual:cocowiki-config'
@@ -43,10 +46,10 @@ function createCocoWikiLogger() {
 
 function contentPlugin(
   config: CocoWikiConfig,
-  contentDir: string,
   dataDir: string,
-  initialRecords: SearchRecord[],
-  projectRoot: string
+  initialRecords: ContentPage[],
+  projectRoot: string,
+  runtimeRoot: string
 ): Plugin {
   const records = initialRecords
   const resolvedConfigId = `\0${CONFIG_ID}`
@@ -55,10 +58,6 @@ function contentPlugin(
   const projectId = createHash('sha256').update(realpathSync(projectRoot)).digest('hex')
   let cleanup = () => {}
 
-  async function refresh() {
-    const nextRecords = await scanContent(contentDir, config.search)
-    records.splice(0, records.length, ...nextRecords)
-  }
 
   return {
     name: 'cocowiki-content-index',
@@ -69,8 +68,8 @@ function contentPlugin(
     async load(id) {
       if (id === resolvedConfigId) return `export default ${JSON.stringify(config)}`
       if (id === resolvedContributorsId) {
-        const contributors = existsSync(contributorsFile) ? JSON.parse(await readFile(contributorsFile, 'utf8')) : {}
-        return `export default ${JSON.stringify(contributors)}`
+        const contributors = validateContributors(existsSync(contributorsFile) ? JSON.parse(await readFile(contributorsFile, 'utf8')) : {}, contributorsFile)
+        return `export default JSON.parse(${JSON.stringify(JSON.stringify(contributors))})`
       }
     },
     configureServer(server) {
@@ -85,46 +84,26 @@ function contentPlugin(
         response.statusCode = 200
         response.setHeader('Content-Type', 'application/json; charset=utf-8')
         response.setHeader('Cache-Control', 'no-store')
-        response.end(JSON.stringify(records))
+        response.end(JSON.stringify(publicRecords(records)))
       })
-      server.watcher.add([contentDir, contributorsFile])
-      let refreshTimer: ReturnType<typeof setTimeout> | undefined
-      const refreshContent = (file: string) => {
-        const path = relative(contentDir, file)
-        if (!path || path.startsWith('..') || (!path.endsWith('.md') && !path.endsWith('.page.json'))) return
-        clearTimeout(refreshTimer)
-        refreshTimer = setTimeout(async () => {
-          try {
-            await refresh()
-            server.ws.send({ type: 'custom', event: 'cocowiki:content-updated' })
-          } catch (error) {
-            server.config.logger.error(`刷新内容索引失败：${error instanceof Error ? error.message : String(error)}`)
+      const snapshot = snapshots.get(runtimeRoot)
+      if (snapshot) {
+        snapshot.notify = () => {
+          records.splice(0, records.length, ...snapshot.pages)
+          // All Markdown modules may contain a link to any changed title/alias.
+          for (const module of server.moduleGraph.idToModuleMap.values()) {
+            if (module.file?.endsWith('.md')) server.moduleGraph.invalidateModule(module)
           }
-        }, 60)
-      }
-      const refreshContributors = (file: string) => {
-        if (file !== contributorsFile) return
-        const module = server.moduleGraph.getModuleById(resolvedContributorsId)
-        if (module) server.moduleGraph.invalidateModule(module)
-        server.ws.send({ type: 'full-reload' })
-      }
-      server.watcher.on('add', refreshContent)
-      server.watcher.on('change', refreshContent)
-      server.watcher.on('unlink', refreshContent)
-      server.watcher.on('add', refreshContributors)
-      server.watcher.on('change', refreshContributors)
-      server.watcher.on('unlink', refreshContributors)
-      cleanup = () => {
-        clearTimeout(refreshTimer)
-        for (const event of ['add', 'change', 'unlink']) {
-          server.watcher.off(event, refreshContent)
-          server.watcher.off(event, refreshContributors)
+          const module = server.moduleGraph.getModuleById(resolvedContributorsId)
+          if (module) server.moduleGraph.invalidateModule(module)
+          server.ws.send({ type: 'custom', event: 'cocowiki:content-updated' })
         }
+        cleanup = () => { snapshot.notify = undefined }
       }
     },
     closeBundle() { cleanup() },
     generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'search-index.json', source: JSON.stringify(records) })
+      this.emitFile({ type: 'asset', fileName: 'search-index.json', source: JSON.stringify(publicRecords(records)) })
     }
   }
 }
@@ -134,12 +113,11 @@ export async function createVitePressConfig(
   projectRoot: string,
   runtimeRoot?: string
 ): Promise<UserConfig> {
-  if (!config.title) throw new Error('配置文件必须提供 title。')
+  validateConfig(config, projectRoot)
   const paths = resolveProjectPaths(projectRoot, config, runtimeRoot)
   if (!existsSync(paths.contentDir)) throw new Error(`内容目录不存在：${paths.contentDir}`)
-  const records = await scanContent(paths.contentDir, config.search)
-  const requestedBase = config.base || '/'
-  const base = `/${requestedBase.replace(/^\/+|\/+$/g, '')}${requestedBase === '/' ? '' : '/'}`
+  const records = [...(snapshots.get(paths.runtimeRoot)?.pages || await scanContent(paths.contentDir, config.search))]
+  const base = normalizeBase(config.base)
   const favicon = config.favicon || config.logo || '/favicon.svg'
   const faviconType = favicon.endsWith('.svg') ? 'image/svg+xml' : favicon.endsWith('.ico') ? 'image/x-icon' : 'image/png'
   const customLogger = createCocoWikiLogger()
@@ -153,7 +131,11 @@ export async function createVitePressConfig(
     cleanUrls: true,
     outDir: paths.outDir,
     cacheDir: resolve(projectRoot, '.cocowiki/cache', basename(paths.runtimeRoot)),
-    lastUpdated: true,
+    lastUpdated: false,
+    transformPageData(pageData) {
+      const record = records.find(record => record.generatedPath === pageData.relativePath)
+      return { lastUpdated: record?.lastUpdated }
+    },
     head: [
       ['link', { rel: 'icon', type: faviconType, href: `${base}${favicon.replace(/^\//, '')}` }],
       ['meta', { name: 'theme-color', content: '#ffffff', media: '(prefers-color-scheme: light)' }],
@@ -165,7 +147,7 @@ export async function createVitePressConfig(
       // A cold dependency crawl must not leave pending transforms blocking a
       // complete server replacement after a config change.
       optimizeDeps: { include: ['cocowiki > minisearch'], holdUntilCrawlEnd: false },
-      plugins: [contentPlugin(config, paths.contentDir, paths.dataDir, records, projectRoot)],
+      plugins: [contentPlugin(config, paths.dataDir, records, projectRoot, paths.runtimeRoot)],
       server: { fs: { allow: [projectRoot, resolve(import.meta.dirname, '../..')] } },
       resolve: {
         alias: {
@@ -181,4 +163,10 @@ export async function createVitePressConfig(
       }
     }
   })
+}
+
+export function runtimeConfig(runtimeRoot: string) {
+  const snapshot = snapshots.get(runtimeRoot)
+  if (!snapshot) throw new Error(`运行目录尚未初始化：${runtimeRoot}`)
+  return createVitePressConfig(snapshot.config, resolve(runtimeRoot, '../..'), runtimeRoot)
 }

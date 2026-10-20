@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useData, useRoute, withBase } from 'vitepress'
+import { canonicalRoute } from '../../shared/routes'
 import config from 'virtual:cocowiki-config'
 
 defineEmits<{ openSearch: [] }>()
@@ -8,7 +9,7 @@ const { isDark } = useData()
 const route = useRoute()
 
 function isCurrent(link?: string) {
-  return Boolean(link && route.path.replace(/\.html$/, '').replace(/\/$/, '') === withBase(link).replace(/\/$/, ''))
+  return Boolean(link && canonicalRoute(route.path) === canonicalRoute(withBase(link)))
 }
 const header = ref<HTMLElement>()
 const menuOpen = ref(false)

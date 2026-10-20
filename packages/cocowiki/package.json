@@ -43,9 +43,9 @@
     "src"
   ],
   "scripts": {
-    "build:package": "esbuild src/config.ts src/node/vitepress.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
+    "build:package": "esbuild src/config.ts src/node/vitepress.ts src/node/cli.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "prepack": "esbuild src/config.ts src/node/vitepress.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
+    "prepack": "esbuild src/config.ts src/node/vitepress.ts src/node/cli.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
     "prepublishOnly": "vue-tsc --noEmit -p tsconfig.json"
   },
   "publishConfig": {

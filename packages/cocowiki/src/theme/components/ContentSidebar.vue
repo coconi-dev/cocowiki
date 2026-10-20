@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute, withBase } from 'vitepress'
+import { canonicalRoute } from '../../shared/routes'
 import config from 'virtual:cocowiki-config'
 
 const route = useRoute()
@@ -12,7 +13,7 @@ const route = useRoute()
       v-for="item in config.navigation"
       v-show="item.link"
       :key="item.text"
-      :class="{ active: item.link && (route.path === item.link || (item.link !== '/' && route.path.startsWith(item.link))) }"
+      :class="{ active: item.link && (canonicalRoute(route.path) === canonicalRoute(withBase(item.link))) }"
       :href="item.link ? withBase(item.link) : undefined"
     >{{ item.text }}</a>
   </aside>
