@@ -1,0 +1,65 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Validate tag and package versions
+        run: node .github/scripts/validate-release.mjs
+      - name: Install dependencies
+        run: |
+          npm install --global pnpm@11.9.0
+          pnpm install --frozen-lockfile
+      - name: Validate and build
+        run: |
+          pnpm typecheck
+          pnpm --dir packages/cocowiki build:package
+          node --test tests/*.test.mjs
+          pnpm build
+          pnpm --dir playground check
+      - name: Pack release assets
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          pnpm --dir packages/cocowiki pack --pack-destination "$RUNNER_TEMP/release-assets"
+          pnpm --dir packages/create-cocowiki pack --pack-destination "$RUNNER_TEMP/release-assets"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; skipping."
+            exit 0
+          fi
+          args=(--verify-tag --generate-notes --title "$RELEASE_TAG")
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "$RUNNER_TEMP/release-assets/"*.tgz --repo "$GH_REPO" "${args[@]}"
