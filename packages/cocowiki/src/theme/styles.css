@@ -477,3 +477,8 @@ a.cw-contributor-card:hover { border-color: var(--cw-border-strong); }
   .cw-result:hover, a.cw-contributor-card:hover, .cw-page-navigation a:hover, .cw-archive-list a:hover b, .cw-home-actions a:hover span, .cw-home-search button:active, .cw-header__actions > button:active, .cw-filter-panel button:active { transform: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.cw-home-actions a.is-brand { font-weight: 650; }
+.cw-home-art.has-visual { height: auto; max-width: min(720px, calc(100% - 48px)); margin: 24px auto; text-align: center; }
+.cw-home-art.has-visual img { display: block; max-height: 360px; margin: auto; object-fit: contain; }
+.cw-home-visual-labels { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 16px; color: var(--cw-muted); font-size: 13px; }

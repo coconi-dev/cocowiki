@@ -62,13 +62,16 @@ function search() {
       </form>
 
       <nav v-if="actions.length" class="cw-home-actions" aria-label="首页入口">
-        <a v-for="action in actions" :key="action.link" :href="withBase(action.link)">
+        <a v-for="action in actions" :key="action.link" :href="withBase(action.link)" :class="`is-${action.theme || 'alt'}`">
           {{ action.text }}<span aria-hidden="true">›</span>
         </a>
       </nav>
     </section>
 
-    <div class="cw-home-art" aria-hidden="true"></div>
+    <div class="cw-home-art" :class="{ 'has-visual': hero.visual?.image }">
+      <img v-if="hero.visual?.image" :src="withBase(hero.visual.image)" alt="">
+      <div v-if="hero.visual?.labels?.length" class="cw-home-visual-labels"><span v-for="label in hero.visual.labels" :key="label">{{ label }}</span></div>
+    </div>
     <footer v-if="hero.note" class="cw-home-note"><p>{{ hero.note }}</p></footer>
   </div>
 </template>
