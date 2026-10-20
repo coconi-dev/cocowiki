@@ -1,5 +1,6 @@
 import fg from 'fast-glob'
 import matter from 'gray-matter'
+import { createFilter } from 'vite'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, relative, resolve } from 'node:path'
@@ -26,12 +27,14 @@ async function gitTime(file: string): Promise<number | undefined> {
 /** Scan all real pages. Search globs only annotate search eligibility. */
 export async function scanContent(contentRoot: string, options: { include?: string[]; exclude?: string[] } = {}): Promise<ContentPage[]> {
   const filenames = await fg(['**/*.md', '**/*.page.vue'], { cwd: contentRoot, onlyFiles: true })
-  const selected = new Set(await fg(options.include || ['**/*.md', '**/*.page.vue', '**/*.page.json'], { cwd: contentRoot, ignore: options.exclude || [] }))
+  const included = createFilter(options.include || ['**/*.md', '**/*.page.vue', '**/*.page.json'], undefined, { resolve: false })
+  const excluded = options.exclude?.length ? createFilter(options.exclude, undefined, { resolve: false }) : () => false
   const records: ContentPage[] = []
   for (const path of filenames.sort()) {
     const sourcePath = resolve(contentRoot, path)
     const kind = path.endsWith('.page.vue') ? 'vue' : 'markdown'
     const metadataPath = sourcePath.replace(/\.page\.vue$/, '.page.json')
+    const identities = kind === 'vue' ? [path, path.replace(/\.page\.vue$/, '.page.json')] : [path]
     let raw: unknown, content = '', sourceContent = '', heading: string | undefined
     try {
       if (kind === 'vue') raw = existsSync(metadataPath) ? JSON.parse(await readFile(metadataPath, 'utf8')) : {}
@@ -55,7 +58,7 @@ export async function scanContent(contentRoot: string, options: { include?: stri
       description: meta.description || '', tags: meta.tags || [], aliases: meta.aliases || [], contributors: meta.contributors || [],
       content: kind === 'vue' ? meta.description || '' : content,
       excerpt: meta.description || content.slice(0, 120),
-      searchable: meta.search !== false && (selected.has(path) || (kind === 'vue' && selected.has(path.replace(/\.page\.vue$/, '.page.json')))),
+      searchable: meta.search !== false && options.include?.length !== 0 && !identities.some(excluded) && identities.some(included),
       lastUpdated: meta.updated ? Date.parse(meta.updated) : timestamp
     })
   }

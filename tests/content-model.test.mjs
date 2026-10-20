@@ -160,3 +160,19 @@ test('runtime reconciles file/directory transitions, removes empty directories a
   const { stat } = await import('node:fs/promises')
   await assert.rejects(stat(resolve(runtime, 'files')), { code: 'ENOENT' })
 })
+
+test('Vue search identity gives exclusions priority across source and metadata paths', async () => {
+  const site = await fixture(), content = resolve(site, 'content')
+  await put(site, 'content/atlas.page.vue', '<template>Atlas</template>')
+  await put(site, 'content/atlas.page.json', '{"title":"Atlas"}')
+  for (const excluded of ['atlas.page.vue', 'atlas.page.json', '**/*.page.vue', '**/*.page.json']) {
+    const pages = await api.scanContent(content, { exclude: [excluded] })
+    assert.equal(pages.length, 1)
+    assert.equal(pages[0].searchable, false, excluded)
+  }
+  assert.equal((await api.scanContent(content, { include: ['atlas.page.json'] }))[0].searchable, true)
+  assert.equal((await api.scanContent(content, { include: ['atlas.page.json'], exclude: ['atlas.page.vue'] }))[0].searchable, false)
+  assert.equal((await api.scanContent(content, { include: [] }))[0].searchable, false)
+  await rm(resolve(content, 'atlas.page.json'))
+  assert.equal((await api.scanContent(content, { exclude: ['atlas.page.json'] }))[0].searchable, false)
+})

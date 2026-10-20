@@ -31,7 +31,7 @@ include 的区域与行范围仍交给 VitePress 处理。使用 `@/` 的 includ
 
 框架先生成完整页面集合，再分别计算功能范围：
 
-- 搜索：符合 `search.include/exclude`、单页 `search !== false`，并排除首页、搜索、归档、贡献者布局。Vue 正文不参与文本提取，使用元数据的描述等字段。
+- 搜索：符合 `search.include/exclude`、单页 `search !== false`，并排除首页、搜索、归档、贡献者布局。Vue 正文不参与文本提取，使用元数据的描述等字段。Vue 源文件与同名 JSON 视为同一搜索身份：include 命中任一名称即可收录，exclude 命中任一名称则排除整页，且排除优先；即使 JSON 尚不存在，其名称仍参加规则匹配。显式 `include: []` 不收录任何页面。
 - 归档：`archive !== false`，排除首页、搜索与归档布局；不受搜索 glob 和 `search: false` 影响。
 - 相邻导航：排除首页、搜索、归档、贡献者布局和 `search: false` 页面；不受搜索 glob 影响。按 `order`、标题、路由排序；`showPrevNext: false` 仅隐藏当前页入口。
 - 贡献统计：完整页面集合，每页同名贡献者计一次，不受搜索或归档筛选影响。
