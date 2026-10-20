@@ -3,7 +3,7 @@ import { resolve, relative, dirname } from 'node:path'
 import { loadConfigFromFile } from 'vite'
 import { build, createServer, disposeMdItInstance, serve } from 'vitepress'
 import { acquireDevInstance } from './dev-instance'
-import { scanContent } from './content'
+import { createContentScanner } from './content'
 import { validateConfig } from './validation'
 import { prepareRuntime, preflightRuntime } from './runtime'
 import { snapshots } from './snapshot'
@@ -70,9 +70,22 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     }
     return validateConfig(loaded?.config, projectRoot)
   }
-  async function preflight(config: CocoWikiConfig) {
-    const pages = await scanContent(resolveProjectPaths(projectRoot, config).contentDir, config.search)
-    await preflightRuntime(projectRoot, config, command)
+  const scanners = new Map<string, ReturnType<typeof createContentScanner>>()
+  async function preflight(config: CocoWikiConfig, changes?: ReadonlySet<string>, historyChanged = false) {
+    const paths = resolveProjectPaths(projectRoot, config)
+    let scanner = scanners.get(paths.contentDir)
+    if (!scanner) { scanner = createContentScanner(paths.contentDir); scanners.set(paths.contentDir, scanner) }
+    if (historyChanged) scanner.invalidateGit()
+    const contentChanges = changes && new Set([...changes].filter(file => !relative(paths.contentDir, file).startsWith('..')))
+    const current = snapshots.get(root)?.pages
+    const pages = current && contentChanges?.size === 0 && !historyChanged
+      ? current
+      : await scanner.scan(config.search, contentChanges)
+    const previous = new Map(current?.map(page => [page.sourcePath, page]))
+    // Components/data do not require reading or reparsing every Markdown page.
+    const validatePages = changes === undefined || historyChanged || [...(contentChanges || [])].some(file => !/\.(md|vue|json)$/.test(file))
+      ? pages : pages.filter(page => previous.get(page.sourcePath) !== page)
+    await preflightRuntime(projectRoot, config, command, validatePages)
     return pages
   }
   if (command !== 'dev') {
@@ -90,6 +103,8 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
   let timer: ReturnType<typeof setTimeout> | undefined
   let configPending = true
   let revision = 0
+  const pendingFiles = new Set<string>()
+  let historyPending = false
   let configurationFailed = false
   const externalWatchers: ReturnType<typeof watch>[] = []
   function watchExternal(next: CocoWikiConfig) {
@@ -97,9 +112,11 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     const paths = resolveProjectPaths(projectRoot, next)
     for (const directory of new Set([paths.contentDir, paths.componentsDir, paths.dataDir])) {
       if (!relative(projectRoot, directory).startsWith('..') || !existsSync(directory)) continue
-      externalWatchers.push(watch(directory, { recursive: true }, (_event, name) => schedule(configurationFailed || (name !== null && resolve(directory, name.toString()) === resolve(paths.dataDir, 'contributors.json')))))
+      externalWatchers.push(watch(directory, { recursive: true }, (_event, name) => {
+        const file = name === null ? directory : resolve(directory, name.toString())
+        schedule(configurationFailed || file === resolve(paths.dataDir, 'contributors.json'), file)
+      }))
     }
-
   }
 
   async function start(nextConfig: CocoWikiConfig) {
@@ -119,15 +136,24 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     const replace = configPending || !server
     configPending = false
     const version = revision
+    const changes = new Set(pendingFiles)
+    pendingFiles.clear()
+    const historyChanged = historyPending
+    historyPending = false
     const previous = config
     try {
       const next = replace ? await readConfig() : config!
-      const pages = await preflight(next)
+      const pages = await preflight(next, replace ? undefined : changes, historyChanged)
       if (replace) configurationFailed = false
       if (isStopping()) return
-      if (version !== revision) { configPending ||= replace; return }
+      if (version !== revision) {
+        configPending ||= replace
+        changes.forEach(file => pendingFiles.add(file))
+        historyPending ||= historyChanged
+        return
+      }
       if (!replace) {
-        await prepareRuntime(projectRoot, next, command, pages)
+        await prepareRuntime(projectRoot, next, command, pages, changes)
         snapshots.get(root)?.notify?.()
         return
       }
@@ -152,6 +178,8 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
         } else throw error
       }
     } catch (error) {
+      changes.forEach(file => pendingFiles.add(file))
+      historyPending ||= historyChanged
       log.error(error)
       if (replace) configurationFailed = true
       if (!server) {
@@ -162,8 +190,10 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
       }
     }
   }
-  function schedule(configuration: boolean) {
+  function schedule(configuration: boolean, file?: string, historyChanged = false) {
     if (state === 'stopping') return
+    if (file) pendingFiles.add(file)
+    historyPending ||= historyChanged
     revision++
     configPending ||= configuration
     clearTimeout(timer)
@@ -175,6 +205,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
   const watcher = watch(projectRoot, { recursive: true }, (_event, filename) => {
     if (!filename) return
     const path = filename.toString().replace(/\\/g, '/')
+    if (path === '.git/HEAD' || path === '.git/packed-refs' || path === '.git/shallow' || path.startsWith('.git/refs/')) { schedule(false, undefined, true); return }
     if (path.startsWith('.cocowiki/') || path.startsWith('node_modules/') || path.startsWith('.git/')) return
     if (configDependencies.has(resolve(projectRoot, path))) { schedule(true); return }
     if (/\.timestamp-/.test(path)) return
@@ -182,8 +213,8 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     const paths = resolveProjectPaths(projectRoot, config)
     const file = resolve(projectRoot, path)
     if (!relative(paths.outDir, file).startsWith('..')) return
-    const inside = (directory: string) => { const rel = relative(directory, file); return rel && !rel.startsWith('..') }
-    if ([paths.contentDir, paths.componentsDir, paths.dataDir].some(inside)) schedule(file === resolve(paths.dataDir, 'contributors.json'))
+    const inside = (directory: string) => { const rel = relative(directory, file); return !rel.startsWith('..') }
+    if ([paths.contentDir, paths.componentsDir, paths.dataDir].some(inside)) schedule(file === resolve(paths.dataDir, 'contributors.json'), file)
     // A repaired missing theme file also retries the latest failed config.
     if (state === 'failed' || /\.(?:vue|css|ts|js|json|md)$/.test(path)) {
       if (!server || configurationFailed) schedule(true)

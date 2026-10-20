@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
@@ -21,8 +21,8 @@ async function freePort() {
   return port
 }
 
-function launch(args, cwd) {
-  const process = spawn(globalThis.process.execPath, [cli, ...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+function launch(args, cwd, env = process.env) {
+  const process = spawn(globalThis.process.execPath, [cli, ...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
   process.stdout.on('data', (chunk) => { output += chunk })
   process.stderr.on('data', (chunk) => { output += chunk })
@@ -370,4 +370,54 @@ test('first invalid config recovers when only an external imported dependency is
   await waitForResponse(`http://127.0.0.1:${port}/@siteData`, 'External repair', dev.output)
   await writeFile(dependency, 'export default { title: "External edit" }\n')
   await waitForResponse(`http://127.0.0.1:${port}/@siteData`, 'External edit', dev.output)
+})
+
+test('component/data edits avoid Git queries and body edits reuse committed dates', { timeout: 30000 }, async (t) => {
+  const workspace = await mkdtemp(resolve(tmpdir(), 'cocowiki-incremental-'))
+  const site = resolve(workspace, 'site'), tools = resolve(workspace, 'tools'), trace = resolve(workspace, 'git-queries.log')
+  let dev
+  t.after(async () => {
+    if (dev?.process.exitCode === null) { const exited = once(dev.process, 'exit'); dev.process.kill('SIGTERM'); await exited }
+    await rm(workspace, { recursive: true, force: true })
+  })
+  for (const dir of ['content', 'components', 'data']) await mkdir(resolve(site, dir), { recursive: true })
+  await mkdir(tools)
+  const fakeGit = `#!/usr/bin/env node
+const fs = require('node:fs')
+fs.appendFileSync(${JSON.stringify(trace)}, process.argv.slice(2).join(' ') + '\\n')
+if (process.argv[2] === 'rev-parse') process.stdout.write('fixture-head\\n')
+else if (process.argv[2] === 'log') process.stdout.write('1704153600\\n')
+else process.exitCode = 1
+`
+  await writeFile(resolve(tools, 'git'), fakeGit, { mode: 0o755 })
+  await symlink(resolve(repository, 'playground/node_modules'), resolve(site, 'node_modules'), 'dir')
+  await writeFile(resolve(site, 'cocowiki.config.ts'), configSource('Incremental'))
+  await writeFile(resolve(site, 'content/index.md'), '# Home\n')
+  await writeFile(resolve(site, 'content/intro.md'), documentSource('BEFORE_EDIT'))
+  await writeFile(resolve(site, 'components/Chart.vue'), '<template>BEFORE_COMPONENT</template>')
+  await writeFile(resolve(site, 'data/items.json'), '[]')
+  const port = await freePort(), origin = `http://127.0.0.1:${port}`
+  dev = launch(['dev', '--host', '127.0.0.1', '--port', String(port)], site, { ...process.env, PATH: `${tools}:${process.env.PATH}` })
+  await waitForResponse(`${origin}/intro.md?import`, 'BEFORE_EDIT', dev.output)
+  const queries = async () => (await readFile(trace, 'utf8')).trim().split('\n')
+  const before = await queries()
+  assert.equal(before.filter(line => line.startsWith('log ')).length, 2)
+  await writeFile(resolve(site, 'components/Chart.vue'), '<template>AFTER_COMPONENT</template>')
+  await waitForResponse(`${origin}/@fs${await realpath(resolve(site, 'components/Chart.vue'))}`, 'AFTER_COMPONENT', dev.output)
+  await delay(300)
+  assert.deepEqual(await queries(), before, 'component changes must reuse the published content snapshot')
+  await writeFile(resolve(site, 'data/items.json'), '[{"name":"changed"}]')
+  await delay(300)
+  assert.deepEqual(await queries(), before, 'data changes must not scan Git history')
+  await writeFile(resolve(site, 'content/intro.md'), documentSource('AFTER_EDIT'))
+  await waitForResponse(`${origin}/intro.md?import`, 'AFTER_EDIT', dev.output)
+  const edited = await queries()
+  assert.equal(edited.filter(line => line.startsWith('log ')).length, 2)
+  assert.ok(edited.filter(line => line.startsWith('rev-parse ')).length > before.filter(line => line.startsWith('rev-parse ')).length)
+  // A Git event explicitly invalidates dates even when HEAD text is unchanged.
+  await mkdir(resolve(site, '.git'))
+  await writeFile(resolve(site, '.git/HEAD'), 'ref: refs/heads/main\n')
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline && (await queries()).filter(line => line.startsWith('log ')).length < 4) await delay(50)
+  assert.equal((await queries()).filter(line => line.startsWith('log ')).length, 4)
 })

@@ -42,7 +42,13 @@ export function rebaseMarkdown(source: string, sourceFile: string, generatedFile
   return source.replace(/\u0000CW_EXAMPLE_(\d+)\u0000/g, (_all, index) => examples[Number(index)])
 }
 
-export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig, mode: RuntimeMode, pages: ContentPage[]) {
+const generatedSnapshots = new Map<string, {
+  pages: Map<string, ContentPage>
+  wikiVersion: string
+  outputs: Map<string, string | Buffer>
+}>()
+
+export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig, mode: RuntimeMode, pages: ContentPage[], changedFiles?: ReadonlySet<string>) {
   const paths = resolveProjectPaths(projectRoot, config, runtimePath(projectRoot, mode))
   const configDirectory = resolve(paths.runtimeRoot, '.vitepress')
   const themeDirectory = resolve(configDirectory, 'theme')
@@ -50,21 +56,28 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
   const files = await fg('**/*', { cwd: paths.contentDir, onlyFiles: true, dot: true, ignore: ['**/*.page.json', '**/*.page.vue'] })
   const wikiVersion = createHash('sha256').update(JSON.stringify(pages.map(page => [page.route, page.title, page.aliases]))).digest('hex')
   const pageByPath = new Map(pages.map(page => [page.generatedPath, page]))
+  const previousRun = generatedSnapshots.get(paths.runtimeRoot)
   const outputs = new Map<string, string | Buffer>()
   for (const file of files) {
     if (file.startsWith('.vitepress/')) raise(`${file} [path]: .vitepress 是保留目录`)
     const sourceFile = resolve(paths.contentDir, file)
     const page = pageByPath.get(file)
-    if (page) {
+    if (page && previousRun?.pages.get(file) === page && previousRun.wikiVersion === wikiVersion) {
+      outputs.set(file, previousRun.outputs.get(file)!)
+    } else if (page) {
       const parsed = matter(page.sourceContent)
       const normalized = matter.stringify(parsed.content, { ...page.frontmatter, title: page.title })
-      outputs.set(file, rebaseMarkdown(normalized, sourceFile, resolve(paths.runtimeRoot, file)) + `\n<!-- cocowiki-links:${wikiVersion} -->\n`)
-    } else outputs.set(file, await readFile(sourceFile))
+      outputs.set(file, rebaseMarkdown(normalized, sourceFile, resolve(paths.runtimeRoot, file)) + `\n<!-- cocowiki-links:${wikiVersion};updated:${page.lastUpdated ?? ''} -->\n`)
+    } else {
+      const changed = changedFiles === undefined || [...changedFiles].some(changed => !relative(changed, sourceFile).startsWith('..'))
+      outputs.set(file, !changed && previousRun?.outputs.has(file) ? previousRun.outputs.get(file)! : await readFile(sourceFile))
+    }
   }
   for (const page of pages.filter(page => page.kind === 'vue')) {
+    if (previousRun?.pages.get(page.generatedPath) === page) { outputs.set(page.generatedPath, previousRun.outputs.get(page.generatedPath)!); continue }
     const frontmatter = { ...page.frontmatter, title: page.title, layout: 'special' }
     const yaml = Object.entries(frontmatter).map(([key, value]) => `${JSON.stringify(key)}: ${JSON.stringify(value)}`).join('\n')
-    outputs.set(page.generatedPath, `---\n${yaml}\n---\n\n<script setup lang="ts">\nimport CocoPage from ${JSON.stringify(pathForImport(dirname(resolve(paths.runtimeRoot, page.generatedPath)), page.sourcePath))}\n</script>\n\n<CocoPage />\n`)
+    outputs.set(page.generatedPath, `---\n${yaml}\n---\n\n<script setup lang="ts">\nimport CocoPage from ${JSON.stringify(pathForImport(dirname(resolve(paths.runtimeRoot, page.generatedPath)), page.sourcePath))}\n</script>\n\n<CocoPage />\n\n<!-- cocowiki-updated:${page.lastUpdated ?? ''} -->\n`)
   }
   await mkdir(themeDirectory, { recursive: true })
   const selectedTheme = config.theme?.entry
@@ -98,6 +111,10 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
   try { previous = JSON.parse(await readFile(manifestFile, 'utf8')).files } catch {
     previous = await fg('**/*', { cwd: paths.runtimeRoot, onlyFiles: true, dot: true, ignore: ['.vitepress/**'] })
   }
+  const writes = changedFiles === undefined ? outputs : new Map([...outputs].filter(([path, content]) => {
+    const prior = previousRun?.outputs.get(path)
+    return Buffer.isBuffer(content) && Buffer.isBuffer(prior) ? !content.equals(prior) : content !== prior
+  }))
   // Remove obsolete paths before writes: a former file may now be a parent
   // directory, or a former directory may now be a file.
   for (const path of previous.sort((a, b) => b.length - a.length)) {
@@ -113,7 +130,7 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
       if (!['ENOTEMPTY', 'ENOENT'].includes((error as NodeJS.ErrnoException).code || '')) throw error
     }
   }
-  for (const path of outputs.keys()) {
+  for (const path of writes.keys()) {
     const destination = resolve(paths.runtimeRoot, path)
     // Also repair partial runs whose paths never reached the manifest.
     let parent = dirname(destination)
@@ -127,7 +144,7 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
       if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code || '')) throw error
     }
   }
-  for (const [path, content] of outputs) {
+  for (const [path, content] of writes) {
     const destination = resolve(paths.runtimeRoot, path)
     if (typeof content === 'string') await writeIfChanged(destination, content)
     else {
@@ -141,10 +158,11 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
   const snapshot = snapshots.get(paths.runtimeRoot)
   if (snapshot) { snapshot.pages = pages; snapshot.config = config }
   else snapshots.set(paths.runtimeRoot, { pages, config })
+  generatedSnapshots.set(paths.runtimeRoot, { pages: pageByPath, wikiVersion, outputs })
   return paths.runtimeRoot
 }
 
-export async function preflightRuntime(projectRoot: string, config: CocoWikiConfig, mode: RuntimeMode) {
+export async function preflightRuntime(projectRoot: string, config: CocoWikiConfig, mode: RuntimeMode, pages?: ContentPage[]) {
   const paths = resolveProjectPaths(projectRoot, config, runtimePath(projectRoot, mode))
   const contributors = resolve(paths.dataDir, 'contributors.json')
   if (existsSync(contributors)) validateContributors(JSON.parse(await readFile(contributors, 'utf8')), contributors)
@@ -154,7 +172,9 @@ export async function preflightRuntime(projectRoot: string, config: CocoWikiConf
     if (!name || names.has(name)) raise(`${file} [component]: 全局组件名称冲突：${names.get(name) || file}`)
     names.set(name, file)
   }
-  for (const path of await fg('**/*.md', { cwd: paths.contentDir })) {
+  if (pages) {
+    for (const page of pages) if (page.kind === 'markdown') rebaseMarkdown(page.sourceContent, page.sourcePath, resolve(paths.runtimeRoot, page.generatedPath))
+  } else for (const path of await fg('**/*.md', { cwd: paths.contentDir })) {
     const file = resolve(paths.contentDir, path)
     rebaseMarkdown(await readFile(file, 'utf8'), file, resolve(paths.runtimeRoot, path))
   }

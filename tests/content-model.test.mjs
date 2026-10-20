@@ -195,3 +195,72 @@ test('public text and excerpts exclude full script/style blocks, comments and co
   // Generation still receives the unmodified source; only the public text is filtered.
   assert.match(pages[0].sourceContent, /SCRIPT_ONLY_MARKER/)
 })
+
+test('session scanner reuses unchanged pages and Git dates, then invalidates on history changes', async () => {
+  const site = await fixture(), content = resolve(site, 'content')
+  for (let i = 0; i < 24; i++) await put(site, `content/page-${i}.md`, `---\ntitle: Page ${i}\n---\nOriginal ${i}`)
+  let head = 'first-head', logCalls = 0, revisionCalls = 0, active = 0, maxActive = 0
+  const scanner = api.createContentScanner(content, async args => {
+    if (args[0] === 'rev-parse') { revisionCalls++; return head }
+    logCalls++
+    active++
+    maxActive = Math.max(maxActive, active)
+    await new Promise(resolve => setImmediate(resolve))
+    active--
+    return head === 'first-head' ? '1704153600' : '1738540800'
+  })
+  const first = await scanner.scan()
+  assert.equal(logCalls, 24)
+  assert.ok(maxActive <= 8)
+  const changed = resolve(content, 'page-0.md')
+  await put(site, 'content/page-0.md', '---\ntitle: Page 0\n---\nUpdated body')
+  const second = await scanner.scan({}, new Set([changed]))
+  assert.equal(logCalls, 24, 'an uncommitted edit must reuse committed file dates')
+  assert.equal(revisionCalls, 2)
+  assert.match(second.find(page => page.route === '/page-0').content, /Updated body/)
+  assert.equal(second.find(page => page.route === '/page-1'), first.find(page => page.route === '/page-1'))
+  head = 'second-head'
+  const third = await scanner.scan({}, new Set())
+  assert.equal(logCalls, 48)
+  assert.ok(third.every(page => page.lastUpdated === 1738540800000))
+  await scanner.scan({}, new Set())
+  assert.equal(logCalls, 48)
+  scanner.invalidateGit()
+  await scanner.scan({}, new Set())
+  assert.equal(logCalls, 72, 'explicit history invalidation also covers shallow/replace changes')
+  await put(site, 'content/new.page.vue', '<template>New</template>')
+  await scanner.scan({}, new Set([resolve(content, 'new.page.vue')]))
+  assert.equal(logCalls, 73)
+  await rm(resolve(content, 'new.page.vue'))
+  assert.equal((await scanner.scan({}, new Set([resolve(content, 'new.page.vue')]))).length, 24)
+})
+
+test('failed incremental parses remain dirty until repaired, even on a different subsequent event', async () => {
+  const site = await fixture(), content = resolve(site, 'content')
+  await put(site, 'content/a.md', '---\ntitle: A\n---\n')
+  await put(site, 'content/b.md', '---\ntitle: B\n---\n')
+  const scanner = api.createContentScanner(content, async () => '')
+  await scanner.scan()
+  await put(site, 'content/a.md', '---\ntitle: 42\n---\n')
+  await assert.rejects(scanner.scan({}, new Set([resolve(content, 'a.md')])), /title/)
+  await put(site, 'content/b.md', '---\ntitle: Updated B\n---\n')
+  await assert.rejects(scanner.scan({}, new Set([resolve(content, 'b.md')])), /a.md.*title/)
+  await put(site, 'content/a.md', '---\ntitle: Repaired A\n---\n')
+  const pages = await scanner.scan({}, new Set([resolve(content, 'a.md')]))
+  assert.deepEqual(pages.map(page => page.title), ['Repaired A', 'Updated B'])
+})
+
+test('Git date invalidation survives a parse failure before the new snapshot commits', async () => {
+  const site = await fixture(), content = resolve(site, 'content')
+  await put(site, 'content/a.md', '---\ntitle: A\n---\n')
+  await put(site, 'content/b.md', '---\ntitle: B\n---\n')
+  let head = 'old'
+  const scanner = api.createContentScanner(content, async args => args[0] === 'rev-parse' ? head : head === 'old' ? '1704153600' : '1738540800')
+  await scanner.scan()
+  head = 'new'
+  await put(site, 'content/a.md', '---\ntitle: 42\n---\n')
+  await assert.rejects(scanner.scan({}, new Set([resolve(content, 'a.md')])), /title/)
+  await put(site, 'content/a.md', '---\ntitle: A\n---\n')
+  const recovered = await scanner.scan({}, new Set([resolve(content, 'a.md')]))
+  assert.ok(recovered.every(page => page.lastUpdated === 1738540800000))
+})
