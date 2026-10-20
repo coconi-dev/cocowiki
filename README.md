@@ -106,6 +106,8 @@ pnpm build
 pnpm preview
 pnpm typecheck
 pnpm check
+pnpm test:content
+pnpm test:navigation
 pnpm test:dev
 ```
 
@@ -129,6 +131,14 @@ contributors:
 ```
 
 原生贡献者页会从全部页面汇总贡献次数。Vue 功能组件还可以从 `cocowiki/theme` 导入 `registerContributorContributions`，登记组件内部维护的内容。
+
+## 开发与规则文档
+
+- [配置参考与主题覆盖契约](./docs/configuration.md)
+- [页面路由、收录范围与贡献登记](./docs/content.md)
+- [开发架构、失败恢复与发布流程](./docs/development.md)
+
+目录页 `guide/index.md` 的规范 URL 为 `/guide/`，与 `guide.md` 的 `/guide` 区分。Vue 页面按实际 `.page.vue` 扫描，没有元数据文件也会收录；孤立 `.page.json` 不生成页面。搜索范围配置只影响搜索，不会移除归档、相邻导航或贡献统计中的页面。
 
 ## License
 
