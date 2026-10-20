@@ -103,11 +103,13 @@ function contentPlugin(
       const snapshot = snapshots.get(runtimeRoot)
       if (snapshot) {
         snapshot.notify = () => {
-          records.splice(0, records.length, ...snapshot.pages)
-          payload = makePayloads()
-          // All Markdown modules may contain a link to any changed title/alias.
+          if (records.length !== snapshot.pages.length || records.some((record, index) => record !== snapshot.pages[index])) {
+            records.splice(0, records.length, ...snapshot.pages)
+            payload = makePayloads()
+          }
+          // Runtime writes include affected hosts and a name-map stamp when Wiki identities change.
           for (const module of server.moduleGraph.idToModuleMap.values()) {
-            if (module.file?.endsWith('.md')) server.moduleGraph.invalidateModule(module)
+            if (module.file && snapshot.changedFiles?.has(module.file)) server.moduleGraph.invalidateModule(module)
           }
           const directory = server.moduleGraph.getModuleById(resolvedDirectoryId)
           if (directory) server.moduleGraph.invalidateModule(directory)

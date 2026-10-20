@@ -5,7 +5,7 @@ import type { CocoWikiConfig, CocoWikiPageMeta } from '../config'
 import { resolveProjectPaths } from './project'
 
 export class ContentError extends Error {
-  constructor(public file: string, public field: string, message: string) {
+  constructor(public file: string, public field: string, message: string, public line = 1) {
     super(`${file} [${field}]: ${message}`)
     this.name = 'ContentError'
   }

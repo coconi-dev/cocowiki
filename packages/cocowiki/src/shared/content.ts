@@ -1,4 +1,4 @@
-import type { DocumentAnalysis } from '../node/document'
+import type { DocumentAnalysis, SourceDocument } from './document'
 import type { CocoWikiPageMeta } from '../config'
 
 /** Browser-facing projection. It contains no machine-local paths or raw scripts. */
@@ -24,6 +24,7 @@ export interface ContentPage extends ContentRecord {
   sourcePath: string
   kind: 'markdown' | 'vue'
   generatedPath: string
+  document?: SourceDocument
   analysis?: DocumentAnalysis
   sourceContent: string
   frontmatter: Record<string, unknown>

@@ -29,7 +29,7 @@ export async function checkContent(config: CocoWikiConfig, projectRoot: string):
   const anchorCache = new Map<string, Set<string>>()
   async function anchors(page: ContentPage) {
     if (anchorCache.has(page.route)) return anchorCache.get(page.route)!
-    const source = page.kind === 'markdown' ? matter(page.sourceContent).content : await readFile(page.sourcePath, 'utf8')
+    const source = page.kind === 'markdown' ? page.document?.source || matter(page.sourceContent).content : await readFile(page.sourcePath, 'utf8')
     const ids = new Set<string>()
     if (page.kind === 'markdown') for (const token of md.parse(source, {})) {
       const id = token.attrGet('id')
@@ -74,8 +74,8 @@ export async function checkContent(config: CocoWikiConfig, projectRoot: string):
     for (const name of page.contributors || []) if (!Object.hasOwn(profiles, name)) add('unknown-contributor', metadataFile, 1, name, '贡献者未在 contributors.json 登记')
     if (page.maintenance?.owner && !Object.hasOwn(profiles, page.maintenance.owner)) add('unknown-maintainer', metadataFile, 1, page.maintenance.owner, '维护者未在 contributors.json 登记')
     for (const target of page.related || []) if (!resolvePage(target)) add('unresolved-related', metadataFile, 1, target, '手动关联词条不存在')
-    if (config.markdown?.wikiLink !== false) for (const link of page.analysis?.wiki || []) if (!resolvePage(link.target)) add('unresolved-wiki', page.sourcePath, link.line + sourceOffset(page), link.target, 'Wiki 目标未解析，访问时将跳转搜索')
-    for (const link of page.analysis?.links || []) await checkLink(page, link.target, link.line + sourceOffset(page), link.image)
+    if (config.markdown?.wikiLink !== false) for (const link of page.analysis?.wiki || []) if (!resolvePage(link.target)) add('unresolved-wiki', link.file || page.sourcePath, link.line + (link.file ? 0 : sourceOffset(page)), link.target, 'Wiki 目标未解析，访问时将跳转搜索')
+    for (const link of page.analysis?.links || []) await checkLink(page, link.target, link.line + (link.file ? 0 : sourceOffset(page)), link.image, link.file || page.sourcePath)
     if (page.image) await checkLink(page, page.image, 1, true, metadataFile)
   }
   const first = pages.find(page => page.route === '/') || pages[0]

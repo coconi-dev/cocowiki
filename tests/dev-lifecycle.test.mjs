@@ -281,6 +281,9 @@ test('invalid replacement configs recover; source snapshot drives Vue discovery 
   dev = launch(['dev', '--host', '127.0.0.1', '--port', String(port)], fixture)
   await waitForResponse(`${origin}/ref.md?import`, '/wiki/target', dev.output)
   await waitForResponse(`${origin}/ref.md?import`, 'SOURCE_INCLUDE_MARKER', dev.output)
+  await writeFile(resolve(fixture, 'snippets/part.md'), 'SOURCE_INCLUDE_MARKER UPDATED_INCLUDE_MARKER\n[[Alias]]\n')
+  await waitForResponse(`${origin}/search-index.json`, 'UPDATED_INCLUDE_MARKER', dev.output)
+  await waitForResponse(`${origin}/ref.md?import`, 'UPDATED_INCLUDE_MARKER', dev.output)
   for (const [theme, pattern] of [
     [{ entry: 'theme/missing.ts' }, /theme.entry/],
     [{ styles: 'theme/missing.css' }, /theme.styles/],

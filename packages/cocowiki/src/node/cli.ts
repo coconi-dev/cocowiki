@@ -79,11 +79,12 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     let scanner = scanners.get(paths.contentDir)
     if (!scanner) { scanner = createContentScanner(paths.contentDir); scanners.set(paths.contentDir, scanner) }
     if (historyChanged) scanner.invalidateGit()
-    const contentChanges = changes && new Set([...changes].filter(file => !relative(paths.contentDir, file).startsWith('..')))
     const current = snapshots.get(root)?.pages
-    const pages = current && contentChanges?.size === 0 && !historyChanged
-      ? current
-      : await scanner.scan(config.search, contentChanges, config.markdown?.wikiLink !== false)
+    const contentChanges = changes && new Set([...changes].filter(file => !relative(paths.contentDir, file).startsWith('..') || scanner!.getDependencies().some(dependency => dependency === file || !relative(file, dependency).startsWith('..'))))
+    let pages
+    try {
+      pages = current && contentChanges?.size === 0 && !historyChanged ? current : await scanner.scan(config.search, contentChanges, config.markdown?.wikiLink !== false)
+    } finally { if (command === 'dev') watchExternal(config) }
     const previous = new Map(current?.map(page => [page.sourcePath, page]))
     // Components/data do not require reading or reparsing every Markdown page.
     const validatePages = changes === undefined || historyChanged || [...(contentChanges || [])].some(file => !/\.(md|vue|json)$/.test(file))
@@ -95,7 +96,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     let issues
     try { issues = await checkContent(await readConfig(), projectRoot) } catch (error) {
       if (!json) throw error
-      console.log(JSON.stringify({ issues: [{ code: 'invalid-content', file: relative(projectRoot, error instanceof ContentError ? error.file : configFile), line: 1, target: error instanceof ContentError ? error.field : '', message: error instanceof Error ? error.message : String(error) }] }, null, 2))
+      console.log(JSON.stringify({ issues: [{ code: 'invalid-content', file: relative(projectRoot, error instanceof ContentError ? error.file : configFile), line: error instanceof ContentError ? error.line : 1, target: error instanceof ContentError ? error.field : '', message: error instanceof Error ? error.message : String(error) }] }, null, 2))
       process.exitCode = 1
       return
     }
@@ -129,7 +130,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
   function watchExternal(next: CocoWikiConfig) {
     externalWatchers.splice(0).forEach(watcher => watcher.close())
     const paths = resolveProjectPaths(projectRoot, next)
-    for (const directory of new Set([paths.contentDir, paths.componentsDir, paths.dataDir])) {
+    for (const directory of new Set([paths.contentDir, paths.componentsDir, paths.dataDir, ...[...scanners.values()].flatMap(scanner => scanner.getDependencies().map(file => dirname(file)))])) {
       if (!relative(projectRoot, directory).startsWith('..') || !existsSync(directory)) continue
       externalWatchers.push(watch(directory, { recursive: true }, (_event, name) => {
         const file = name === null ? directory : resolve(directory, name.toString())
@@ -233,7 +234,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     const file = resolve(projectRoot, path)
     if (!relative(paths.outDir, file).startsWith('..')) return
     const inside = (directory: string) => { const rel = relative(directory, file); return !rel.startsWith('..') }
-    if ([paths.contentDir, paths.componentsDir, paths.dataDir].some(inside)) schedule(file === resolve(paths.dataDir, 'contributors.json'), file)
+    if ([paths.contentDir, paths.componentsDir, paths.dataDir].some(inside) || [...scanners.values()].some(scanner => scanner.getDependencies().some(dependency => dependency === file || !relative(file, dependency).startsWith('..')))) schedule(file === resolve(paths.dataDir, 'contributors.json'), file)
     // A repaired missing theme file also retries the latest failed config.
     if (state === 'failed' || /\.(?:vue|css|ts|js|json|md)$/.test(path)) {
       if (!server || configurationFailed) schedule(true)

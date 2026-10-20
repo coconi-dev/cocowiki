@@ -8,6 +8,7 @@ import type { CocoWikiConfig } from '../config'
 import type { ContentPage } from '../shared/content'
 import { resolveProjectPaths, runtimePath, type RuntimeMode } from './project'
 import { validateContributors } from './validation'
+import { sourceLocation } from './includes'
 import { snapshots } from './snapshot'
 
 function raise(message: string): never { throw new Error(message) }
@@ -25,9 +26,16 @@ export async function writeIfChanged(filename: string, content: string) {
 }
 
 /** Resolve relative imports against their authored location, including external includes. */
-export function rebaseMarkdown(source: string, sourceFile: string, generatedFile: string) {
-  const rebase = (path: string) => pathForImport(dirname(generatedFile), resolve(dirname(sourceFile), path))
+export function rebaseMarkdown(source: string, sourceFile: string, generatedFile: string, locate?: (offset: number) => string) {
+  const rebase = (path: string, offset = 0) => pathForImport(dirname(generatedFile), resolve(dirname(locate?.(offset) || sourceFile), path))
   // Only script blocks contain module imports; code examples remain untouched.
+  if (locate) {
+    const examples = [...source.matchAll(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\2[ \t]*$/gm)].map(match => [match.index!, match.index! + match[0].length])
+    source = source.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, (script, offset) => examples.some(([start, end]) => offset >= start && offset < end) ? script : script.replace(/((?:from\s*|import\s*\(\s*|import\s*)['"])(\.{1,2}\/[^'"\n]+)(['"])/g, (_all: string, before: string, path: string, after: string, inner: number) => before + rebase(path, offset + inner) + after))
+    locate = undefined
+    // Already rebased imports must not be rewritten a second time.
+    return source
+  }
   const examples: string[] = []
   source = source.replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\2[ \t]*$/gm, block => `\u0000CW_EXAMPLE_${examples.push(block) - 1}\u0000`)
   source = source.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, script => script
@@ -66,8 +74,7 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
       outputs.set(file, previousRun.outputs.get(file)!)
     } else if (page) {
       const parsed = matter(page.sourceContent)
-      const normalized = matter.stringify(parsed.content, { ...page.frontmatter, title: page.title })
-      outputs.set(file, rebaseMarkdown(normalized, sourceFile, resolve(paths.runtimeRoot, file)) + `\n<!-- cocowiki-links:${wikiVersion};updated:${page.lastUpdated ?? ''} -->\n`)
+      outputs.set(file, matter.stringify(rebaseMarkdown(page.document?.source || parsed.content, sourceFile, resolve(paths.runtimeRoot, file), page.document ? offset => sourceLocation(page.document!, offset).file : undefined), { ...page.frontmatter, title: page.title }) + `\n<!-- cocowiki-links:${wikiVersion};updated:${page.lastUpdated ?? ''} -->\n`)
     } else {
       const changed = changedFiles === undefined || [...changedFiles].some(changed => !relative(changed, sourceFile).startsWith('..'))
       outputs.set(file, !changed && previousRun?.outputs.has(file) ? previousRun.outputs.get(file)! : await readFile(sourceFile))
@@ -156,8 +163,9 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
   await writeIfChanged(manifestFile, JSON.stringify({ files: [...outputs.keys()], pages: pages.map(({ sourceContent, frontmatter, ...page }) => page) }, null, 2))
   await writeIfChanged(resolve(configDirectory, 'config.mts'), `import { runtimeConfig } from 'cocowiki/runtime'\nexport default runtimeConfig(${JSON.stringify(paths.runtimeRoot)})\n`)
   const snapshot = snapshots.get(paths.runtimeRoot)
-  if (snapshot) { snapshot.pages = pages; snapshot.config = config }
-  else snapshots.set(paths.runtimeRoot, { pages, config })
+  const changedOutputs = new Set([...outputs].filter(([path, content]) => previousRun?.outputs.get(path) !== content).map(([path]) => resolve(paths.runtimeRoot, path)))
+  if (snapshot) { snapshot.pages = pages; snapshot.config = config; snapshot.changedFiles = changedOutputs }
+  else snapshots.set(paths.runtimeRoot, { pages, config, changedFiles: changedOutputs })
   generatedSnapshots.set(paths.runtimeRoot, { pages: pageByPath, wikiVersion, outputs })
   return paths.runtimeRoot
 }
@@ -173,7 +181,7 @@ export async function preflightRuntime(projectRoot: string, config: CocoWikiConf
     names.set(name, file)
   }
   if (pages) {
-    for (const page of pages) if (page.kind === 'markdown') rebaseMarkdown(page.sourceContent, page.sourcePath, resolve(paths.runtimeRoot, page.generatedPath))
+    for (const page of pages) if (page.kind === 'markdown') rebaseMarkdown(page.document?.source || page.sourceContent, page.sourcePath, resolve(paths.runtimeRoot, page.generatedPath), page.document ? offset => sourceLocation(page.document!, offset).file : undefined)
   } else for (const path of await fg('**/*.md', { cwd: paths.contentDir })) {
     const file = resolve(paths.contentDir, path)
     rebaseMarkdown(await readFile(file, 'utf8'), file, resolve(paths.runtimeRoot, path))

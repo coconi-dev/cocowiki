@@ -3,6 +3,7 @@ import type { ContentPage } from '../shared/content'
 export interface Snapshot {
   pages: ContentPage[]
   config: CocoWikiConfig
+  changedFiles?: Set<string>
   notify?: () => void
 }
 const key = Symbol.for('cocowiki.snapshots')

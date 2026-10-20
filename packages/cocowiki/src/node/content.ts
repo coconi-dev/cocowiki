@@ -7,6 +7,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { ContentPage } from '../shared/content'
 import { routeFromPath } from '../shared/routes'
+import { expandDocument, sourceLocation, lineOffset } from './includes'
 import { analyzeDocument } from './document'
 import { linkPages } from './relations'
 import { ContentError, validateMeta } from './validation'
@@ -24,6 +25,7 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
   let historyInvalidated = false
   let initialized = false
   let failed = false
+  const dependencies = new Set<string>()
 
   async function signature(file: string) {
     try {
@@ -72,31 +74,43 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
       const kind = path.endsWith('.page.vue') ? 'vue' : 'markdown'
       const metadataPath = sourcePath.replace(/\.page\.vue$/, '.page.json')
       const prior = cached.get(path)
-      const check = discover || changed.has(path) || !prior
+      const affected = prior?.page.document?.dependencies.some(file => changedFiles && [...changedFiles].some(changed => file === changed || !relative(changed, file).startsWith('..')))
+      const check = discover || changed.has(path) || !prior || affected
       const sourceSignature = check ? await signature(sourcePath) : undefined
       if (sourceSignature === 'missing' || sourceSignature === 'directory') return
       const metadataSignature = kind === 'vue' ? (check ? await signature(metadataPath) : prior!.signature.split('|')[1]) : ''
       const hasMetadata = kind === 'vue' && metadataSignature !== 'missing'
-      const currentSignature = check ? `${sourceSignature}|${metadataSignature}` : prior!.signature
+      const dependencySignature = check ? await Promise.all((prior?.page.document?.dependencies || []).map(signature)) : []
+      let currentSignature = check ? `${sourceSignature}|${metadataSignature}|${dependencySignature.join(';')}` : prior!.signature
       let page = prior?.page
       if (!prior || prior.signature !== currentSignature) {
         let raw: unknown, content = '', sourceContent = '', heading: string | undefined
         let analysis: ReturnType<typeof analyzeDocument> | undefined
+        let document: Awaited<ReturnType<typeof expandDocument>> | undefined
         try {
           if (kind === 'vue') raw = hasMetadata ? JSON.parse(await readFile(metadataPath, 'utf8')) : {}
           else {
             sourceContent = await readFile(sourcePath, 'utf8')
             const parsed = matter(sourceContent)
             raw = parsed.data
-            analysis = analyzeDocument(parsed.content)
+            const firstLine = sourceContent.split('\n').length - parsed.content.split('\n').length + 1
+            document = await expandDocument(parsed.content, sourcePath, contentRoot, firstLine, file => dependencies.add(file))
+            analysis = analyzeDocument(document.source)
+            for (const reference of [...analysis.links, ...analysis.wiki, ...analysis.headings]) {
+              const offset = lineOffset(document.source, reference.line)
+              const target = 'target' in reference ? reference.target : reference.title
+              const found = document.source.indexOf(target, offset)
+              Object.assign(reference, sourceLocation(document, found >= offset && found < (document.source.indexOf('\n', offset) < 0 ? Infinity : document.source.indexOf('\n', offset)) ? found : offset))
+            }
+            currentSignature = `${sourceSignature}|${metadataSignature}|${(await Promise.all(document.dependencies.map(signature))).join(';')}`
             content = analysis.text
             heading = analysis.headings.find(heading => heading.level === 1)?.title
           }
-        } catch (error) { throw new ContentError(kind === 'vue' ? metadataPath : sourcePath, 'metadata', String(error)) }
+        } catch (error) { if (error instanceof ContentError) throw error; throw new ContentError(kind === 'vue' ? metadataPath : sourcePath, 'metadata', String(error)) }
         const meta = validateMeta(raw, kind === 'vue' ? metadataPath : sourcePath)
         const route = routeFromPath(path)
         page = {
-          ...meta, id: route, route, sourcePath, kind, sourceContent, analysis, frontmatter: meta as Record<string, unknown>,
+          ...meta, id: route, route, sourcePath, kind, sourceContent, analysis, document, frontmatter: meta as Record<string, unknown>,
           generatedPath: path.replace(/\.page\.vue$/, '.md'),
           title: meta.title || heading || basename(path).replace(/(?:\.page\.vue|\.md)$/, ''),
           layout: kind === 'vue' ? 'special' : meta.layout,
@@ -109,7 +123,7 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
       const searchable = page!.search !== false && options.include?.length !== 0 && !identities.some(excluded) && identities.some(included)
       let lastUpdated = page!.lastUpdated
       if (previousFailure || historyChanged || !prior || prior.signature !== currentSignature) {
-        const times = await Promise.all([gitTime(sourcePath), ...(hasMetadata ? [gitTime(metadataPath)] : [])])
+        const times = await Promise.all([gitTime(sourcePath), ...(hasMetadata ? [gitTime(metadataPath)] : []), ...(page!.document?.dependencies || []).map(gitTime)])
         lastUpdated = page!.updated ? Date.parse(page!.updated) : Math.max(0, ...times.map(time => time || 0)) || undefined
       }
       if (page!.searchable !== searchable || page!.lastUpdated !== lastUpdated) page = { ...page!, searchable, lastUpdated }
@@ -132,7 +146,7 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
     failed = false
     return linked.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
   }
-  return { scan, invalidateGit() { dates.clear(); historyInvalidated = true } }
+  return { scan, getDependencies: () => [...dependencies], invalidateGit() { dates.clear(); historyInvalidated = true } }
 }
 
 /** One-shot scanner for builds and callers without a development session. */
@@ -156,5 +170,5 @@ function validateIdentities(records: ContentPage[]) {
 }
 
 export function publicRecords(pages: ContentPage[]) {
-  return pages.map(({ sourcePath, generatedPath, sourceContent, analysis, frontmatter, kind, ...record }) => record)
+  return pages.map(({ sourcePath, generatedPath, sourceContent, analysis, document, frontmatter, kind, ...record }) => record)
 }
