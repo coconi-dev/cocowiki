@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import { useContentStore } from '../content'
 import ContentStatus from './ContentStatus.vue'
@@ -16,9 +16,27 @@ const archive = computed(() => records.value.filter((record) => {
   if (record.archive === false) return false
   return !['home', 'search', 'archive'].includes(record.layout || '')
 }))
+const limit = ref(40)
+const tagQuery = ref('')
+const showAllTags = ref(false)
+watch(filters, () => { limit.value = 40 }, { deep: true })
 const groups = computed(() => archiveGroups(browseRecords(records.value, filters)))
 const categories = computed(() => [...new Set(archive.value.map(page => page.category || page.type).filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
-const tags = computed(() => [...new Set(archive.value.flatMap(page => page.tags || []))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+const tags = computed(() => {
+  const counts = new Map<string, number>()
+  for (const page of archive.value) for (const tag of new Set(page.tags || [])) counts.set(tag, (counts.get(tag) || 0) + 1)
+  return [...counts].sort(([a, countA], [b, countB]) => countB - countA || a.localeCompare(b, 'zh-CN')).map(([tag]) => tag)
+})
+const visibleTags = computed(() => {
+  const selected = filters.tags
+  const matching = tagQuery.value ? tags.value.filter(tag => tag.toLocaleLowerCase().includes(tagQuery.value.toLocaleLowerCase())) : tags.value.slice(0, showAllTags.value ? undefined : 12)
+  return [...new Set([...selected, ...matching])]
+})
+const visibleGroups = computed(() => {
+  let remaining = limit.value
+  return groups.value.flatMap(([name, pages]) => { const visible = pages.slice(0, remaining); remaining -= visible.length; return visible.length ? [[name, visible] as const] : [] })
+})
+const visibleCount = computed(() => visibleGroups.value.reduce((sum, [, pages]) => sum + pages.length, 0))
 const activeCount = computed(() => Number(Boolean(filters.query)) + Number(Boolean(filters.category)) + Number(Boolean(filters.status)) + filters.tags.length)
 const total = computed(() => groups.value.reduce((count, [, pages]) => count + pages.length, 0))
 function writeFilters(replace = false) {
@@ -58,7 +76,10 @@ onUnmounted(() => { if (router.onAfterRouteChange === installed) router.onAfterR
       <label><span>分类</span><select v-model="filters.category" @change="writeFilters()"><option value="">全部分类</option><option v-for="category in categories" :key="category" :value="category">{{ category }}</option></select></label>
       <label><span>状态</span><select v-model="filters.status" @change="writeFilters()"><option value="">全部状态</option><option value="needs-attention">待维护</option><option v-for="(info, status) in pageStatuses" :key="status" :value="status">{{ info.label }}</option></select></label>
       </div>
-      <div class="cw-archive-tags"><span>标签</span><div class="cw-tags" aria-label="按标签组合筛选"><button v-for="tag in tags" :key="tag" type="button" :aria-pressed="filters.tags.includes(tag)" @click="toggleTag(tag)">{{ tag }}</button></div></div>
+      <label v-if="tags.length > 12" class="cw-tag-search"><span>查找标签</span><input v-model="tagQuery" type="search" placeholder="输入标签名称"></label>
+      <div class="cw-archive-tags"><span>标签</span><div class="cw-tags" aria-label="按标签组合筛选"><button v-for="tag in visibleTags" :key="tag" type="button" :aria-pressed="filters.tags.includes(tag)" @click="toggleTag(tag)">{{ tag }}</button></div></div>
+      <button v-if="tags.length > 12 && !tagQuery" class="cw-tag-toggle" type="button" :aria-expanded="showAllTags" @click="showAllTags = !showAllTags">{{ showAllTags ? '收起标签' : `展开全部 ${tags.length} 个标签` }}</button>
+      <p v-if="tagQuery && !visibleTags.length" class="cw-tag-empty">没有匹配的标签</p>
       <div class="cw-archive-selection">
         <span role="status">{{ total }} 条结果</span>
         <div v-if="activeCount" class="cw-selected-filters" aria-label="已选条件">
@@ -71,7 +92,7 @@ onUnmounted(() => { if (router.onAfterRouteChange === installed) router.onAfterR
       </div>
     </div>
     <ContentStatus :loading="loading" :error="error" @retry="retry" />
-    <section v-for="([name, items]) in groups" :key="name" class="cw-archive-group">
+    <section v-for="([name, items]) in visibleGroups" :key="name" class="cw-archive-group">
       <div class="cw-archive-group__title"><h2>{{ name }}</h2><small>{{ items.length }} 个条目</small></div>
       <div class="cw-archive-list">
         <a v-for="item in items" :key="item.route" :href="withBase(item.route)">
@@ -80,6 +101,7 @@ onUnmounted(() => { if (router.onAfterRouteChange === installed) router.onAfterR
         </a>
       </div>
     </section>
+    <div v-if="total > visibleCount" class="cw-list-more"><span>已显示 {{ visibleCount }} / {{ total }} 条</span><button type="button" @click="limit += 40">再显示 40 条</button></div>
     <div v-if="!loading && !error && !groups.length" class="cw-empty"><strong>没有匹配的词条</strong><p>清除筛选后查看全部归档。</p></div>
   </div>
 </template>

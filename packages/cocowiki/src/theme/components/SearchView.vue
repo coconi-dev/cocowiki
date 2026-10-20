@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import type { ContentRecord } from '../../shared/content'
 import { useSearchStore } from '../content'
@@ -25,6 +25,9 @@ const results = computed(() => {
   return found.filter((item) => type.value === 'all' || item.category === type.value || item.type === type.value)
 })
 
+const limit = ref(30)
+const visibleResults = computed(() => results.value.slice(0, limit.value))
+watch([query, type], () => { limit.value = 30 })
 const suggestions = computed(() => suggestQueries(searchable.value, query.value))
 
 onMounted(() => {
@@ -58,12 +61,13 @@ onUnmounted(() => {
       <section class="cw-results">
         <ContentStatus :loading="loading" :error="error" @retry="retry" />
         <div class="cw-results__summary" role="status"><strong>{{ results.length }}</strong> 条结果 <span v-if="query">关于“{{ query }}”</span></div>
-        <a v-for="item in results" :key="item.id" class="cw-result" :href="withBase(item.route as string)">
+        <a v-for="item in visibleResults" :key="item.id" class="cw-result" :href="withBase(item.route as string)">
           <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span><span v-if="item.status">{{ statusLabel(item.status) }}</span></div>
           <h2><SearchHighlight :text="item.title" :query="query" /></h2>
           <p><SearchHighlight :text="item.description || ''" :query="query" /></p>
           <blockquote v-if="query"><SearchHighlight :text="searchSnippet(item as SearchResultRecord, query)" :query="query" /></blockquote>
         </a>
+        <div v-if="results.length > visibleResults.length" class="cw-list-more"><span>已显示 {{ visibleResults.length }} / {{ results.length }} 条</span><button type="button" @click="limit += 30">再显示 30 条</button></div>
         <div v-if="!loading && !error && !results.length" class="cw-empty"><strong>没有找到相关记录</strong><p>多个关键词需要同时命中。试试单个名称、别名，或缩短关键词。</p><button v-if="type !== 'all'" type="button" @click="type = 'all'">清除分类筛选</button><p v-if="suggestions.length">可以搜索：<button v-for="suggestion in suggestions" :key="suggestion" type="button" @click="query = suggestion">{{ suggestion }}</button></p><a :href="withBase('/archive')">浏览全部词条</a></div>
       </section>
     </div>

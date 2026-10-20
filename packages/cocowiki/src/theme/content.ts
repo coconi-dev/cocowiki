@@ -77,6 +77,6 @@ export async function loadSearchContent(): Promise<{ records: ContentRecord[]; i
 }
 export function useSearchStore() {
   onMounted(() => { void loadSearchContent().catch(() => {}) })
-  return { searchable, index: shallowReadonly(index), loading: readonly(searchLoading), error: readonly(searchError), version, retry: () => { void refreshContent().then(() => loadSearchContent()).catch(() => {}) } }
+  return { searchable, index: shallowReadonly(index), loading: computed(() => searchLoading.value || (!index.value && !searchError.value && !error.value)), error: computed(() => searchError.value || error.value), version, retry: () => { void refreshContent().then(() => loadSearchContent()).catch(() => {}) } }
 }
 if (import.meta.hot) import.meta.hot.on('cocowiki:content-updated', () => { void refreshContent().catch(() => {}) })

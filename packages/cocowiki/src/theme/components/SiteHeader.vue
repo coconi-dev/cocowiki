@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useData, useRoute, withBase } from 'vitepress'
 import { canonicalRoute } from '../../shared/routes'
 import config from 'virtual:cocowiki-config'
@@ -13,6 +13,7 @@ function isCurrent(link?: string) {
 }
 const header = ref<HTMLElement>()
 const menuOpen = ref(false)
+const menuButton = ref<HTMLButtonElement>()
 const openDropdown = ref<string>()
 const theme = ref<'light' | 'dark' | 'system'>('system')
 let systemTheme: MediaQueryList | undefined
@@ -32,19 +33,27 @@ function cycleTheme() {
   applyTheme(order[(order.indexOf(theme.value) + 1) % order.length])
 }
 
-function closeNavigation() {
+function closeNavigation(restoreFocus = false) {
+  const wasOpen = menuOpen.value
   menuOpen.value = false
   openDropdown.value = undefined
+  if (restoreFocus === true && wasOpen) void nextTick(() => menuButton.value?.focus())
 }
 
-watch(() => route.path, closeNavigation)
+watch(() => route.path, () => closeNavigation())
+async function toggleNavigation() {
+  if (menuOpen.value) { closeNavigation(true); return }
+  menuOpen.value = true
+  await nextTick()
+  header.value?.querySelector<HTMLElement>('.cw-nav a, .cw-nav button')?.focus()
+}
 
 function onOutsideClick(event: MouseEvent) {
   if (!header.value?.contains(event.target as Node)) closeNavigation()
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') closeNavigation()
+  if (event.key === 'Escape') closeNavigation(true)
 }
 
 onMounted(() => {
@@ -65,20 +74,20 @@ onUnmounted(() => {
 <template>
   <header ref="header" class="cw-header">
     <div class="cw-header__inner">
-      <a class="cw-brand" :href="withBase('/')" aria-label="返回首页" @click="closeNavigation">
+      <a class="cw-brand" :href="withBase('/')" aria-label="返回首页" @click="closeNavigation()">
         <img v-if="config.logo" class="cw-brand__logo" :src="withBase(config.logo)" alt="">
         <span v-else class="cw-brand__mark">{{ config.title.slice(0, 1) }}</span>
         <span>
           <strong>{{ config.title }}</strong>
         </span>
       </a>
-      <nav :class="['cw-nav', { 'is-open': menuOpen }]" aria-label="主导航">
+      <nav id="cw-primary-navigation" :class="['cw-nav', { 'is-open': menuOpen }]" aria-label="主导航">
         <div
           v-for="item in config.navigation"
           :key="item.text"
           :class="['cw-nav-item', { 'has-children': item.items?.length, 'is-open': openDropdown === item.text }]"
         >
-          <a v-if="!item.items?.length && item.link" :href="withBase(item.link)" :aria-current="isCurrent(item.link) ? 'page' : undefined" @click="closeNavigation">{{ item.text }}</a>
+          <a v-if="!item.items?.length && item.link" :href="withBase(item.link)" :aria-current="isCurrent(item.link) ? 'page' : undefined" @click="closeNavigation()">{{ item.text }}</a>
           <button
             v-else
             type="button"
@@ -89,8 +98,8 @@ onUnmounted(() => {
             <svg aria-hidden="true" viewBox="0 0 12 12"><path d="m3 4.5 3 3 3-3" /></svg>
           </button>
           <div v-if="item.items?.length" class="cw-nav-dropdown">
-            <a v-if="item.link" :href="withBase(item.link)" :aria-current="isCurrent(item.link) ? 'page' : undefined" @click="closeNavigation">查看全部</a>
-            <a v-for="child in item.items" :key="child.text" :href="child.link ? withBase(child.link) : undefined" @click="closeNavigation">
+            <a v-if="item.link" :href="withBase(item.link)" :aria-current="isCurrent(item.link) ? 'page' : undefined" @click="closeNavigation()">查看全部</a>
+            <a v-for="child in item.items" :key="child.text" :href="child.link ? withBase(child.link) : undefined" @click="closeNavigation()">
               <span>{{ child.text }}</span>
             </a>
           </div>
@@ -105,7 +114,7 @@ onUnmounted(() => {
           <svg v-else-if="theme === 'dark'" aria-hidden="true" viewBox="0 0 24 24"><path d="M19 15.2A7.5 7.5 0 0 1 8.8 5 7.5 7.5 0 1 0 19 15.2Z"/></svg>
           <svg v-else aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         </button>
-        <button class="cw-menu-button" type="button" :aria-expanded="menuOpen" :aria-label="menuOpen ? '关闭导航' : '展开导航'" @click="menuOpen = !menuOpen">
+        <button ref="menuButton" class="cw-menu-button" aria-controls="cw-primary-navigation" type="button" :aria-expanded="menuOpen" :aria-label="menuOpen ? '关闭导航' : '展开导航'" @click="toggleNavigation">
           <span></span><span></span>
         </button>
       </div>
