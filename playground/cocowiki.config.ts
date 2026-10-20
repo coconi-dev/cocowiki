@@ -4,6 +4,7 @@ export default defineCocoWikiConfig({
   title: 'CoCoWiki',
   description: '一个由 Markdown、Vue 和静态数据组成的轻量资料站示例。',
   lang: 'zh-CN',
+  // 部署到子目录时可改为 '/my-wiki/'，根目录部署保持 '/'。
   base: '/',
   logo: '/cocowiki-logo.png',
   favicon: '/favicon.png',

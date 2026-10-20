@@ -37,11 +37,7 @@ jobs:
           pnpm install --frozen-lockfile
       - name: Validate and build
         run: |
-          pnpm typecheck
-          pnpm --dir packages/cocowiki build:package
-          node --test tests/*.test.mjs
-          pnpm build
-          pnpm --dir playground check
+          pnpm verify
       - name: Pack release assets
         run: |
           mkdir -p "$RUNNER_TEMP/release-assets"
