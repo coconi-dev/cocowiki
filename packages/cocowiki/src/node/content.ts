@@ -12,8 +12,14 @@ import { ContentError, validateMeta } from './validation'
 export type { ContentPage, ContentRecord, SearchRecord } from '../shared/content'
 const exec = promisify(execFile)
 
+function visibleMarkdown(markdown: string) {
+  return markdown
+    .replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\2[ \t]*$/gm, ' ')
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+}
 function plainText(markdown: string) {
-  return markdown.replace(/```[\s\S]*?```/g, ' ').replace(/<[^>]+>/g, ' ')
+  return markdown.replace(/<[^>]+>/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/[#>*_`~|:-]/g, ' ').replace(/\s+/g, ' ').trim()
 }
@@ -42,8 +48,9 @@ export async function scanContent(contentRoot: string, options: { include?: stri
         sourceContent = await readFile(sourcePath, 'utf8')
         const parsed = matter(sourceContent)
         raw = parsed.data
-        content = plainText(parsed.content)
-        heading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim()
+        const visible = visibleMarkdown(parsed.content)
+        content = plainText(visible)
+        heading = visible.match(/^#\s+(.+)$/m)?.[1]?.trim()
       }
     } catch (error) { throw new ContentError(kind === 'vue' ? metadataPath : sourcePath, 'metadata', String(error)) }
     const meta = validateMeta(raw, kind === 'vue' ? metadataPath : sourcePath)

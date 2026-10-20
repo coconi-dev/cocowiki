@@ -176,3 +176,22 @@ test('Vue search identity gives exclusions priority across source and metadata p
   await rm(resolve(content, 'atlas.page.json'))
   assert.equal((await api.scanContent(content, { exclude: ['atlas.page.json'] }))[0].searchable, false)
 })
+
+test('public text and excerpts exclude full script/style blocks, comments and code fences', async () => {
+  const site = await fixture()
+  await put(site, 'content/visible.md', [
+    '<script setup lang="ts">', 'const SCRIPT_ONLY_MARKER = 1', '# Hidden heading', '</script>',
+    '<STYLE scoped>', '.STYLE_ONLY_MARKER { color: red }', '</STYLE>',
+    '<!-- COMMENT_ONLY_MARKER -->',
+    '~~~vue', '<script>FENCED_ONLY_MARKER</script>', '~~~',
+    '# Visible title', 'Visible body with **formatting**.'
+  ].join('\n'))
+  const pages = await api.scanContent(resolve(site, 'content'))
+  assert.equal(pages[0].title, 'Visible title')
+  assert.match(pages[0].content, /Visible body with formatting/)
+  assert.match(pages[0].excerpt, /Visible body/)
+  const published = JSON.stringify(api.publicRecords(pages))
+  for (const marker of ['SCRIPT_ONLY_MARKER', 'STYLE_ONLY_MARKER', 'COMMENT_ONLY_MARKER', 'FENCED_ONLY_MARKER', 'Hidden heading']) assert.ok(!published.includes(marker), marker)
+  // Generation still receives the unmodified source; only the public text is filtered.
+  assert.match(pages[0].sourceContent, /SCRIPT_ONLY_MARKER/)
+})
