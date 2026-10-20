@@ -100,12 +100,12 @@ onUnmounted(() => {
             <SearchView v-else-if="layout === 'search'" />
             <ArchiveView v-else-if="layout === 'archive'" />
             <ContributorsView v-else-if="layout === 'contributors'" />
-            <div v-else-if="layout === 'special'"><PageStatus class="cw-special-status" /><component :is="route.component" class="cw-special-content" v-bind="site.contentProps" /></div>
+            <div v-else-if="layout === 'special'"><PageStatus standalone class="cw-special-status" /><component :is="route.component" class="cw-special-content" v-bind="site.contentProps" /></div>
             <div v-else :class="['cw-doc-shell', `is-${sidebar}`]">
               <ContentSidebar v-if="sidebar === 'light'" />
               <article class="cw-doc">
-                <PageStatus />
                 <PageMeta />
+                <PageStatus />
                 <component :is="route.component" class="cw-prose" v-bind="site.contentProps" />
                 <PageRelations />
                 <PageNavigation v-if="showPrevNext" />
