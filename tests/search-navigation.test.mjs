@@ -104,6 +104,11 @@ test('archive combines shared URL filters and restores them after history naviga
     await nextTick()
     assert.equal(state.total, 1)
     assert.equal(state.groups[0][1][0].title, '守卫')
+    assert.equal(state.activeCount, 1)
+    state.removeFilter('category')
+    assert.equal(state.activeCount, 0)
+    assert.equal(state.total, 3)
+    assert.equal(new URL(globalThis.location.href).searchParams.has('category'), false)
   } finally {
     app?.unmount()
     for (const [key, value] of Object.entries(original)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value }

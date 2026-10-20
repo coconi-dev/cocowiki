@@ -18,6 +18,6 @@ const sections = computed(() => [
   </aside>
 </template>
 <style scoped>
-.cw-page-relations { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--cw-border); }
-h2 { font-size: 17px; } ul { padding-left: 20px; } a { color: var(--cw-accent); } span { color: var(--cw-muted); font-size: 14px; }
+.cw-page-relations { margin-top: var(--cw-space-8); padding-top: var(--cw-space-6); border-top: 1px solid var(--cw-border); }
+h2 { font-size: 17px; } ul { padding-left: 20px; } a { color: var(--cw-accent); } span { color: var(--cw-muted); font-size: var(--cw-font-small); }
 </style>
