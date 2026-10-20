@@ -13,6 +13,7 @@ import { normalizeBase } from '../shared/routes'
 import { resolveProjectPaths } from './project.ts'
 
 const CONFIG_ID = 'virtual:cocowiki-config'
+const DIRECTORY_ID = 'virtual:cocowiki-directory'
 const CONTRIBUTORS_ID = 'virtual:cocowiki-contributors'
 const ANSI = { reset: '\x1b[0m', dim: '\x1b[2m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m' }
 
@@ -53,19 +54,28 @@ function contentPlugin(
 ): Plugin {
   const records = initialRecords
   const resolvedConfigId = `\0${CONFIG_ID}`
+  const resolvedDirectoryId = `\0${DIRECTORY_ID}`
   const resolvedContributorsId = `\0${CONTRIBUTORS_ID}`
   const contributorsFile = resolve(dataDir, 'contributors.json')
   const projectId = createHash('sha256').update(realpathSync(projectRoot)).digest('hex')
   let cleanup = () => {}
-
+  function makePayloads() {
+    const search = publicRecords(records)
+    const version = createHash('sha256').update(JSON.stringify(search)).digest('hex').slice(0, 24)
+    return { version, search, directory: { version, searchUrl: `/search-index.${version}.json`, records: search.map(({ content, excerpt, ...page }) => page) } }
+  }
+  let payload = makePayloads()
+  const payloads = () => payload
 
   return {
     name: 'cocowiki-content-index',
     resolveId(id) {
+      if (id === DIRECTORY_ID) return resolvedDirectoryId
       if (id === CONFIG_ID) return resolvedConfigId
       if (id === CONTRIBUTORS_ID) return resolvedContributorsId
     },
     async load(id) {
+      if (id === resolvedDirectoryId) return `export default ${JSON.stringify(payloads().directory)}`
       if (id === resolvedConfigId) return `export default ${JSON.stringify(config)}`
       if (id === resolvedContributorsId) {
         const contributors = validateContributors(existsSync(contributorsFile) ? JSON.parse(await readFile(contributorsFile, 'utf8')) : {}, contributorsFile)
@@ -80,20 +90,27 @@ function contentPlugin(
           response.end(JSON.stringify({ pid: process.pid, projectId, token: process.env.COCOWIKI_DEV_INSTANCE }))
           return
         }
-        if (!request.url?.split('?')[0]?.endsWith('/search-index.json')) return next()
+        const url = request.url?.split('?')[0] || ''
+        const payload = payloads()
+        const isDirectory = url.endsWith('/content-directory.json')
+        const isSearch = url.endsWith(payload.directory.searchUrl)
+        if (!isDirectory && !isSearch && !url.endsWith('/search-index.json')) return next()
         response.statusCode = 200
         response.setHeader('Content-Type', 'application/json; charset=utf-8')
         response.setHeader('Cache-Control', 'no-store')
-        response.end(JSON.stringify(publicRecords(records)))
+        response.end(JSON.stringify(isDirectory ? payload.directory : isSearch ? { version: payload.version, records: payload.search } : payload.search))
       })
       const snapshot = snapshots.get(runtimeRoot)
       if (snapshot) {
         snapshot.notify = () => {
           records.splice(0, records.length, ...snapshot.pages)
+          payload = makePayloads()
           // All Markdown modules may contain a link to any changed title/alias.
           for (const module of server.moduleGraph.idToModuleMap.values()) {
             if (module.file?.endsWith('.md')) server.moduleGraph.invalidateModule(module)
           }
+          const directory = server.moduleGraph.getModuleById(resolvedDirectoryId)
+          if (directory) server.moduleGraph.invalidateModule(directory)
           const module = server.moduleGraph.getModuleById(resolvedContributorsId)
           if (module) server.moduleGraph.invalidateModule(module)
           server.ws.send({ type: 'custom', event: 'cocowiki:content-updated' })
@@ -103,7 +120,10 @@ function contentPlugin(
     },
     closeBundle() { cleanup() },
     generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'search-index.json', source: JSON.stringify(publicRecords(records)) })
+      const payload = payloads()
+      this.emitFile({ type: 'asset', fileName: 'content-directory.json', source: JSON.stringify(payload.directory) })
+      this.emitFile({ type: 'asset', fileName: payload.directory.searchUrl.slice(1), source: JSON.stringify({ version: payload.version, records: payload.search }) })
+      this.emitFile({ type: 'asset', fileName: 'search-index.json', source: JSON.stringify(payload.search) })
     }
   }
 }

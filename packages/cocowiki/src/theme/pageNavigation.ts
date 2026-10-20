@@ -1,13 +1,13 @@
-import type { ContentRecord } from '../shared/content'
+import type { PageSummary } from '../shared/content'
 
 const excludedLayouts = new Set(['home', 'search', 'archive', 'contributors'])
 
-function readingOrder(record: ContentRecord) {
+function readingOrder(record: PageSummary) {
   return typeof record.order === 'number' && Number.isFinite(record.order) ? record.order : Infinity
 }
 
 /** Keep search/archive ordering independent of the document reading sequence. */
-export function navigationRecords(records: ContentRecord[]): ContentRecord[] {
+export function navigationRecords<T extends PageSummary>(records: readonly T[]): T[] {
   return records
     .filter(record => record.search !== false && !excludedLayouts.has(record.layout || ''))
     .sort((a, b) => {

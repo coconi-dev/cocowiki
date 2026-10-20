@@ -35,7 +35,11 @@
     },
     "./theme": "./src/theme/index.ts",
     "./theme/customization": "./src/theme/customization.ts",
-    "./theme/components": "./src/theme/components/index.ts"
+    "./theme/components": "./src/theme/components/index.ts",
+    "./client": {
+      "types": "./src/client.ts",
+      "import": "./src/client.ts"
+    }
   },
   "files": [
     "bin",

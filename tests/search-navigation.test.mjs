@@ -21,12 +21,14 @@ test('mounted search tracks full navigation URLs and restores existing router ho
   globalThis.__cocowikiTestRouter = { onAfterRouteChange: previousHook }
   globalThis.location = { href: 'http://example.com/search?q=Alpha' }
   const page = title => ({ id: `/${title}`, route: `/${title}`, title, tags: [], aliases: [], contributors: [], content: title, searchable: true })
-  globalThis.fetch = async () => ({ ok: true, json: async () => [page('Alpha'), page('Beta')] })
+  globalThis.fetch = async url => ({ ok: true, json: async () => ({ version: 'test', searchUrl: '/search-index.test.json', records: [page('Alpha'), page('Beta')] }) })
   let app
   try {
     await symlink(resolve(pkg, 'node_modules'), resolve(temporary, 'node_modules'), 'dir')
     const outfile = resolve(temporary, 'search.mjs')
     await build({ entryPoints: [resolve(pkg, 'src/theme/components/SearchView.vue')], bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile, plugins: [{ name: 'test-components', setup(build) {
+      build.onResolve({ filter: /^virtual:cocowiki-directory$/ }, () => ({ path: 'directory', namespace: 'seed' }))
+      build.onLoad({ filter: /.*/, namespace: 'seed' }, () => ({ contents: 'export default { version: \"\", records: [], searchUrl: \"\" }' }))
       build.onResolve({ filter: /^vitepress$/ }, () => ({ path: 'vitepress', namespace: 'test' }))
       build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const withBase = p => p; export const useRouter = () => globalThis.__cocowikiTestRouter' }))
       build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
@@ -42,6 +44,7 @@ test('mounted search tracks full navigation URLs and restores existing router ho
     const state = app._instance.setupState
     await new Promise(resolve => setImmediate(resolve))
     await nextTick()
+    for(let i=0;i<10 && state.loading;i++) await new Promise(resolve=>setImmediate(resolve))
     assert.equal(state.query, 'Alpha')
     assert.deepEqual(state.results.map(result => result.title), ['Alpha'])
     for (const href of ['/search?q=Beta', '/search?q=Alpha', '/search', '/search?q=%E4%B8%AD%E6%96%87']) {
@@ -73,16 +76,18 @@ test('archive combines shared URL filters and restores them after history naviga
   globalThis.__cocowikiTestRouter = router
   globalThis.location = { href: 'http://example.com/archive?category=地点&tag=北境&tag=城市' }
   globalThis.history = { state: {}, pushState(_state, _title, url) { globalThis.location.href = String(url) }, replaceState(_state, _title, url) { globalThis.location.href = String(url) } }
-  globalThis.fetch = async () => ({ ok: true, json: async () => [
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({version: 'test', searchUrl: '/search-index.test.json', records: [
     { id: '/a', route: '/a', title: '北城', category: '地点', tags: ['北境', '城市'], content: '' },
     { id: '/b', route: '/b', title: '南城', category: '地点', tags: ['城市'], content: '' },
     { id: '/c', route: '/c', title: '守卫', category: '人物', tags: ['北境'], content: '' }
-  ] })
+  ] }) })
   let app
   try {
     await symlink(resolve(pkg, 'node_modules'), resolve(temporary, 'node_modules'), 'dir')
     const outfile = resolve(temporary, 'archive.mjs')
     await build({ entryPoints: [resolve(pkg, 'src/theme/components/ArchiveView.vue')], bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile, plugins: [{ name: 'components', setup(build) {
+      build.onResolve({ filter: /^virtual:cocowiki-directory$/ }, () => ({ path: 'directory', namespace: 'seed' }))
+      build.onLoad({ filter: /.*/, namespace: 'seed' }, () => ({ contents: 'export default { version: \"\", records: [], searchUrl: \"\" }' }))
       build.onResolve({ filter: /^vitepress$/ }, () => ({ path: 'vitepress', namespace: 'test' }))
       build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const withBase = p => p; export const useRouter = () => globalThis.__cocowikiTestRouter' }))
       build.onLoad({ filter: /\.vue$/ }, async ({ path }) => ({ contents: compileScript(parse(await readFile(path, 'utf8')).descriptor, { id: path, inlineTemplate: false }).content, loader: 'ts' }))

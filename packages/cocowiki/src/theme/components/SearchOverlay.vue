@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, withBase } from 'vitepress'
-import { useContentStore } from '../content'
+import { useSearchStore } from '../content'
 import { searchDocuments } from '../search'
 import SearchHighlight from './SearchHighlight.vue'
 import ContentStatus from './ContentStatus.vue'
@@ -13,7 +13,7 @@ const input = ref<HTMLInputElement>()
 let previousFocus: HTMLElement | null = null
 let previousOverflow = ''
 const router = useRouter()
-const { searchable, index: miniSearch, loading, error, retry } = useContentStore()
+const { searchable, index: miniSearch, loading, error, retry } = useSearchStore()
 const results = computed(() => {
   if (!query.value.trim()) return searchable.value.slice(0, 5)
   return searchDocuments(miniSearch.value, query.value).slice(0, 6)

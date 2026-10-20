@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import type { ContentRecord } from '../../shared/content'
-import { useContentStore } from '../content'
+import { useSearchStore } from '../content'
 import { statusLabel } from '../../shared/status'
 import { searchDocuments, searchSnippet, suggestQueries } from '../search'
 import SearchHighlight from './SearchHighlight.vue'
@@ -15,7 +15,7 @@ const router = useRouter()
 let previousNavigationHook: typeof router.onAfterRouteChange
 let installedNavigationHook: typeof router.onAfterRouteChange
 const type = ref('all')
-const { searchable, index: miniSearch, loading, error, retry } = useContentStore()
+const { searchable, index: miniSearch, loading, error, retry } = useSearchStore()
 
 const types = computed(() => [...new Set(searchable.value.map((item) => item.category || item.type).filter((value): value is string => Boolean(value)))])
 const results = computed(() => {

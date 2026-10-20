@@ -1,5 +1,5 @@
 import MiniSearch from 'minisearch'
-import type { ContentRecord } from '../shared/content'
+import type { ContentRecord, PageSummary } from '../shared/content'
 
 export function tokenize(text: string) {
   const normalized = text.toLocaleLowerCase().normalize('NFKC').trim()
@@ -39,8 +39,8 @@ export function createSearch(records: ContentRecord[]) {
 export function searchTerms(query: string) {
   return [...new Set(query.normalize('NFKC').toLocaleLowerCase().match(/\p{Script=Han}+|[a-z0-9]+/gu) || [])]
 }
-export function searchDocuments(index: ReturnType<typeof createSearch>, query: string) {
-  if (!searchTerms(query).length) return []
+export function searchDocuments(index: ReturnType<typeof createSearch> | undefined, query: string) {
+  if (!index || !searchTerms(query).length) return []
   return index.search(query, {
     combineWith: 'AND',
     prefix: term => /^[a-z0-9]+$/.test(term) && term.length >= 2,
@@ -76,7 +76,7 @@ export function searchSnippet(item: { title: string; description?: string; conte
   }
   return `${bestStart ? '…' : ''}${best.slice(bestStart, bestStart + 160)}${bestStart + 160 < best.length ? '…' : ''}`
 }
-export function suggestQueries(records: readonly ContentRecord[], query: string) {
+export function suggestQueries(records: readonly PageSummary[], query: string) {
   const terms = searchTerms(query)
   return records.map(page => ({ title: page.title, score: terms.filter(term => [page.title, ...(page.aliases || []), ...(page.tags || [])].join(' ').toLocaleLowerCase().includes(term)).length }))
     .filter(page => page.score > 0 && page.title !== query).sort((a, b) => b.score - a.score).slice(0, 3).map(page => page.title)

@@ -15,3 +15,9 @@ declare module 'virtual:cocowiki-contributors' {
   }>
   export default contributors
 }
+
+declare module 'virtual:cocowiki-directory' {
+  import type { ContentDirectory } from './shared/content'
+  const directory: ContentDirectory
+  export default directory
+}
