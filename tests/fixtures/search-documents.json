@@ -1,0 +1,356 @@
+{
+  "origin": "CoCoWiki 文档站 0.3.1 使用文档快照（正文前 1600 字）",
+  "records": [
+    {
+      "id": "/manual/config/layout-and-theme",
+      "route": "/manual/config/layout-and-theme",
+      "title": "布局与主题",
+      "description": "配置内容侧栏、目录、前后页、暗色模式与主题覆盖",
+      "category": "配置",
+      "tags": [
+        "布局",
+        "主题",
+        "CSS",
+        "暗色模式"
+      ],
+      "aliases": [
+        "自定义主题",
+        "内容布局"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "布局与主题 全局内容布局 选项 作用 outline 快速开启或关闭 Markdown 标题目录 sidebar: 'none' 不显示侧栏 sidebar: 'light' 显示轻量内容入口侧栏 sidebar: 'outline' 显示当前页面右侧目录 showPrevNext 显示上一篇、下一篇 showLastUpdated 显示最后更新时间 单页可以用同名 Frontmatter 覆盖： outline 的明确设置优先于 sidebar。例如本站全局开启了 outline: true，单页需要无侧栏时应同时设置 outline: false；使用轻侧栏时写成： 相邻页面顺序 开启 showPrevNext 后，每页 Frontmatter 中的 order 控制阅读顺序。数值越小越靠前，未设置的排在后面。order 是页面字段，不放在全局 content 中，完整规则见 Frontmatter。 默认外观与动效 默认主题包含半透明导航与搜索控件、首页动态曲线和紧凑贡献者名片。页面切换以短暂淡入为主，列表有轻微错峰出现，按钮和卡片提供按压、悬停反馈；正文不做逐段滚动入场。 动效遵循系统的“减少动态效果”，透明控件遵循“减少透明度”。若希望所有访客都看到静态背景，可在自定义 CSS 中隐藏 .cw-home-flow。没有独立的 motion 或 glass 配置字段。 Light、Dark 与 System 默认主题内置三种模式，读者可以通过导航栏按钮循环切换： System：跟随操作系统，并实时响应系统主题变化。 Light：固定亮色。 Dark：固定暗色。 选择保存在浏览器本地，不需要在配置中维护状态。 添加自己的样式 新建 styles/custom.css： 然后配置： 多个文件可以使用数组： 自定义样式在默认主题之后加载，适合修改变量、排版和局部组件外观。 替换布局部件 可以保留 CoCoWiki 的整体布局，只替换特定部分： 支持的部件名： 区域 名称 顶部与首页 Header、Home 功能页 Search、Archive、Contributors 内容页 PageMeta、PageOutline、ContentSidebar、PageNavigation、PageFooter 全局状态 SearchOverlay、Loading、NotFound 替换组件会异步加载。路径相对于项目根目录；缺失的主题入口、样式或覆盖组件，以及未知部件名，会在配置预检查时报告。 覆盖组件的接口 部件 Props 事件 Header 无 open-search：请求打开搜索浮层 PageOutline headers?: { level, title, slug }[] 无 PageFooter showLastUpdated?: boolean 无 SearchOverlay 无 close：请求关闭搜索浮层 其余覆盖点没有约定 props 或事件，所有覆盖点均无命名插槽。可通过 VitePress 的 useData()、useRoute() 读取页面状态；覆盖搜索浮层时，需要处理焦点、键盘和页面滚动恢复。 默认组件可以从 cocowiki/theme/components 导入复用，默认布局以 CocoWikiLayout 从 cocowiki/theme 导出。 使用完整主题入口 如果确实需要完全接管 VitePress 主题，可以指定入口： 完整主题入口需要导出 VitePress Theme 对象。此方式会取代默认主题，适合已经熟悉 Vue 与 VitePress 主题结构的站点；普通视觉调整优先使用 styles 和 components。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/features/contributors",
+      "route": "/manual/features/contributors",
+      "title": "贡献者与署名",
+      "description": "配置贡献者资料、页面署名和贡献次数统计",
+      "category": "站点能力",
+      "tags": [
+        "贡献者",
+        "Frontmatter",
+        "ContributorList"
+      ],
+      "aliases": [
+        "贡献统计",
+        "页面署名",
+        "贡献者功能"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "贡献者与署名 定义贡献者资料 在 data/contributors.json 中以稳定键名保存资料： 字段 是否必需 说明 name 否 显示名称；缺省时使用对象键名 initials 否 没有头像时显示的缩写 role 否 角色或说明 avatar 否 public/ 中的头像地址 url 否 点击后的完整链接 github 否 GitHub 用户名或完整地址 url 优先于 github。这些简介字段都应填写字符串，类型错误会指出文件和字段。 给页面署名 在 Frontmatter 中引用贡献者键名： 页面信息区会显示头像与名称，搜索也能通过贡献者名字找到这张页面。 在正文中显示贡献者 ContributorList 是框架内置的全局组件。不传 names 时，它读取当前页面 Frontmatter： 指定名单和标题： 紧凑显示： 贡献者总览页 建立入口文件 content/contributors.md： 总览页会列出 contributors.json 中的人，并统计每个内容页面 Frontmatter 中出现的次数。同一人在同一页面重复填写只计算一次。统计使用完整页面集合，不受 search.include/exclude、search: false 或 archive: false 影响。 总览页采用横向紧凑名片：左侧头像或缩写，中间姓名与角色，右侧贡献次数。没有配置 role 时不显示额外说明。桌面三列、平板两列、窄屏单列，名片会保留外部主页链接。 页面会汇总资料配置与索引中出现的贡献者，按贡献次数从多到少排序；次数相同时按姓名排序。头像、角色和链接在 contributors.json 中维护，无需修改组件。 功能页补充贡献次数 纯 Vue 功能页内部的数据也可以参与总数统计： 第一个参数是当前统计来源的唯一名称，第二个参数是贡献者键名与次数。重复使用相同来源名称会更新该来源，而不是叠加出重复记录；旧清理函数不会删除后来的新登记。次数需要是非负有限数值，也可传入字符串数组，按姓名出现次数累计。 组件卸载或不再提供这份数据时应调用返回的清理函数。登记仅在其运行生命周期内有效；如果希望离开功能页后总览仍包含这些统计，应在站点级常驻组件中维护登记。 :::info 统计口径 页面 Frontmatter 表示“参与过这个页面”，每页每人计一次；功能页接口适合统计物品、时间线事件等页面内部的数据条目。 :::",
+      "searchable": true
+    },
+    {
+      "id": "/manual/deployment/build-and-deploy",
+      "route": "/manual/deployment/build-and-deploy",
+      "title": "构建与部署",
+      "description": "构建纯静态站点并部署到常见静态托管平台",
+      "category": "发布",
+      "tags": [
+        "构建",
+        "部署",
+        "GitHub Pages",
+        "Cloudflare Pages",
+        "Vercel",
+        "Netlify"
+      ],
+      "aliases": [
+        "静态部署",
+        "发布网站"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "构建与部署 生成静态站点 默认输出到 dist/： 部署不需要 Node.js 服务端。只要托管平台能够发布静态目录即可。 本地检查构建结果 请在部署前至少检查： 首页与内容页能正常打开。 搜索可以找到新页面。 图片和 favicon 正常显示。 刷新深层地址不会返回托管平台自己的 404。 暗色模式和移动端导航可以使用。 根目录与子目录 部署到域名根目录： 部署到 https://username.github.io/repository/： 如果配置错误，最常见的现象是首页 HTML 能打开，但 CSS、JavaScript 或图片返回 404。 GitHub Pages 项目站点通常使用仓库名作为 base： 构建命令： 发布目录： 如果使用自定义域名，通常将 base 恢复为 /。 使用 GitHub Actions 自动部署 GitHub Actions 可以在每次推送到 main 分支后自动安装依赖、构建站点，并把 dist/ 发布到 GitHub Pages。 在项目根目录创建以下文件： 将下面的内容写入 .github/workflows/deploy.yml： 然后进入 GitHub 仓库： 将发布来源选择为 GitHub Actions。完成后，把代码推送到 main 分支；也可以进入仓库的 Actions 页面手动运行工作流。 部署地址与 base 必须对应： 部署地址 base https://username.github.io/repository/ '/repository/' https://username.github.io/ '/' 自定义域名根目录 '/' 例如仓库名是 cocowiki-doc，站点发布到 https://username.github.io/cocowiki-doc/，则配置应为： 工作流运行成功后，后续每次推送到 main 分支都会自动重新构建并更新站点。 Cloudflare Pages 设置 值 构建命令 pnpm build 输出目录 dist Node.js 20 或更高 默认域名部署在根路径，base 使用 /。 Vercel 设置 值 Framework Preset Other Build Command pnpm build Output Directory dist Netlify 设置 值 Build command pnpm build Publish directory dist Nginx 将 dist/ 上传到网站目录。为了兼容没有 .html 后缀的地址，可以使用： 如果站点部署在子目录，还需要让 Nginx 的目录位置与 base 保持一致。 其他静态托管 对于对象存储或其他平台，核心规则只有两条： 构建命令执行 pnpm build 或 npm run build。 对外发布 dist/，不要发布项目源码或 .cocowiki/。 CoCoWiki 自带静态 404.html。托管平台允许设置错误页面时，将它指定为 404 页面即可。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/guide/getting-started",
+      "route": "/manual/guide/getting-started",
+      "title": "快速开始",
+      "description": "创建、启动并构建一个 CoCoWiki 站点",
+      "category": "开始使用",
+      "tags": [
+        "安装",
+        "CLI",
+        "pnpm",
+        "npm"
+      ],
+      "aliases": [
+        "安装 CoCoWiki",
+        "创建站点"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "快速开始 环境要求 Node.js 20 或更高版本 pnpm 或 npm 可以用下面的命令检查当前 Node.js 版本： 使用 pnpm 创建 使用 npm 创建 脚手架会把站点名称改为目录名，并生成可以直接运行的示例内容。终端输出本地地址后，在浏览器中打开即可。 :::warning 不要混用锁文件 pnpm 会生成 pnpm-lock.yaml，npm 会生成 package-lock.json。同一个站点建议固定使用一种包管理器。 ::: 常用命令 pnpm npm 用途 pnpm dev npm run dev 启动开发服务器并监听内容变化 pnpm build npm run build 生成静态站点到 dist/ pnpm preview npm run preview 在本地预览已经构建的结果 开发服务器还接受 Vite 常用的地址参数： 写下第一篇内容 在 content/hello.md 中写入： 保存后访问 /hello。这个页面也会自动出现在搜索结果和归档中。 构建前检查 build 成功后，部署时只需要上传 dist/。如果站点不是部署在域名根目录，请先阅读 构建与部署 中的 base 配置。 更新依赖 安装最新的 CoCoWiki： npm 项目使用： 更新前退出开发服务，完成后重新构建并启动。将 package.json 与锁文件一起提交。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/reference/config",
+      "route": "/manual/reference/config",
+      "title": "配置参考",
+      "description": "cocowiki.config.ts 当前支持的全部配置项",
+      "category": "参考",
+      "tags": [
+        "配置参考",
+        "TypeScript"
+      ],
+      "aliases": [
+        "CocoWikiConfig",
+        "全部配置"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "配置参考 以下字段均写在 defineCocoWikiConfig() 中。 顶层配置 字段 类型 默认值 说明 title string 必填 站点名称 description string 无 站点描述 lang string zh-CN 页面语言 logo string 无 导航 Logo favicon string logo 或 /favicon.svg 浏览器图标 base string / 部署网址根目录 navigation NavigationItem[] 无 顶部导航 directories Directories 见下文 用户目录位置 theme ThemeConfig 默认主题 样式、部件或主题入口 search SearchConfig 开启 搜索入口与收录范围 markdown MarkdownConfig 扩展开启 Markdown 扩展开关 content ContentConfig 见下文 内容页默认布局 home HomeConfig 见下文 首页文案与搜索入口 navigation directories search enabled 默认 true，控制搜索入口。include 默认匹配 **/*.md、**/*.page.vue、**/*.page.json；include 和 exclude 均使用相对于内容目录的 glob 模式。 这两个范围只决定搜索收录，不影响归档、相邻导航和贡献统计。Vue 源文件与同名 JSON 按同一页面匹配，任一名称命中 exclude 都优先排除整页；显式 include: [] 不收录页面。 markdown content 当前默认行为是显示右侧目录；前后页默认关闭；最后更新时间默认显示。模板站可以显式开启前后页。 home content/index.md 中的 hero 按第一层字段覆盖这些值。首页入口按 actions 数组顺序显示为文字链接。 theme 路径都相对于项目根目录。部件名称区分大小写，未知名称及缺失文件会在启动或配置重建前报告错误；覆盖组件的 props、事件和复用方式见 布局与主题。 页面 Frontmatter 参考 字段解释和示例见 Frontmatter。 完整示例",
+      "searchable": true
+    },
+    {
+      "id": "/manual/guide/introduction",
+      "route": "/manual/guide/introduction",
+      "title": "认识 CoCoWiki",
+      "description": "了解 CoCoWiki 的定位、适用场景与基本工作方式",
+      "category": "开始使用",
+      "tags": [
+        "CoCoWiki",
+        "静态 Wiki",
+        "VitePress"
+      ],
+      "aliases": [
+        "CoCoWiki 是什么"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "认识 CoCoWiki CoCoWiki 是基于 VitePress 的轻量静态 Wiki 框架，适合设定集、游戏资料站、人物档案和项目知识库。本文档包含入门步骤、配置参考和可运行的页面示例。 你可以先用 Markdown 写资料，需要筛选、图表或复杂展示时，再加入 Vue 组件。构建结果是静态文件，无需数据库或 Node.js 服务端。 内容如何组织 位置 用途 content/ Markdown 文档与纯 Vue 页面 components/ 可在 Markdown 中直接调用的 Vue 组件 data/ 图鉴、时间线和贡献者等静态数据 public/ 图片、字体和其他公开资源 cocowiki.config.ts 站点名称、导航、搜索、主题和目录配置 页面标题、分类、标签和别名写在 Frontmatter 中。CoCoWiki 扫描这些字段与正文，生成搜索、归档和贡献统计。访问者既可以搜索独立词条，也可以通过 order 按设定的顺序阅读文档。 与 VitePress 的关系 Markdown 渲染、Vue 支持、路由和静态构建来自 VitePress。CoCoWiki 在此基础上提供资料站默认主题、全文搜索、归档、贡献者页面、组件自动注册，以及统一的项目约定与 CLI。 如果你希望直接维护 VitePress 的配置与主题，可以使用 VitePress；如果希望从内容目录和一份站点配置开始，CoCoWiki 提供了已经组合好的默认方案。 三种页面形式 页面形式 写法 适合内容 普通 Markdown .md 人物、地点、概念和说明文章 Markdown + Vue 在 .md 中使用组件 局部图表、状态标记和交互内容 纯 Vue 页面 .page.vue，可选同名 .page.json 图鉴、时间线、筛选器和关系图 大多数内容可以保持为 Markdown，只有页面主要功能依赖交互时才需要纯 Vue 页面。本站的 Markdown 与 Vue 示例 和 图鉴示例 分别展示后两种形式。 从哪里开始 快速开始：创建站点、安装依赖并启动本地预览。 项目目录：了解内容、组件、数据和资源的位置。 Frontmatter：设置分类、署名、布局和阅读顺序。 站点配置 与 配置参考：按需配置站点。 构建与部署：生成并发布静态文件。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/content/page-types",
+      "route": "/manual/content/page-types",
+      "title": "三种页面形式",
+      "description": "使用普通 Markdown、Markdown 与 Vue 混合页和纯 Vue 专属页",
+      "category": "内容创作",
+      "tags": [
+        "Markdown",
+        "Vue",
+        "页面"
+      ],
+      "aliases": [
+        "页面类型",
+        "纯 Vue 页面"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "三种页面形式 普通 Markdown 页面 创建 content/archive/members/xizhe.md： 页面地址是 /archive/members/xizhe。它会自动参与搜索、归档、目录和前后页导航。 Markdown + Vue 页面 所有 components/ 下的 Vue 组件都会全局注册，可以直接写进 Markdown： 这种形式适合在文章中加入卡片、图表、状态、人物列表等局部交互，同时继续使用 Markdown 的标题目录和阅读布局。 本站的 Markdown 与 Vue 示例 就是一张可运行的混合页面。 纯 Vue 专属页 纯 Vue 页面以 .page.vue 为实际页面源，可以用同名 .page.json 补充元数据： atlas.page.vue 负责页面界面： atlas.page.json 提供可被搜索、归档和贡献统计读取的页面元信息： .page.json 是可选的：没有它时，页面仍可访问并进入内容集合，标题默认取文件名。只有 JSON、没有同名 .page.vue 时，不生成页面或索引；删除 Vue 文件会移除生成页面，删除 JSON 则回退默认元数据。 最终页面地址是 /atlas。order 会让该页面进入文档的阅读顺序；纯 Vue 页面默认使用自己的页面结构，不自动附加文档正文、目录或前后页导航。 :::warning 元信息文件必须是合法 JSON JSON 不能包含注释或尾随逗号。修改 .page.json 后，开发服务器会重新生成对应页面和搜索索引。 ::: 如何选择 需求 推荐形式 以文字、图片和表格为主 普通 Markdown 文章中只有一小块动态内容 Markdown + Vue 页面核心是筛选、排序或可视化 纯 Vue 专属页 希望自动生成标题目录 两种 Markdown 形式 需要完全控制页面结构 纯 Vue 专属页 优先从 Markdown 开始。当普通内容已经足够时，不必为了统一形式改写成 Vue。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/content/vue-components",
+      "route": "/manual/content/vue-components",
+      "title": "使用 Vue 组件",
+      "description": "创建自动全局注册的 Vue 组件并在 Markdown 和专属页中使用",
+      "category": "内容创作",
+      "tags": [
+        "Vue",
+        "组件",
+        "静态数据"
+      ],
+      "aliases": [
+        "全局组件",
+        "Markdown Vue"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "使用 Vue 组件 components/ 下的所有 .vue 文件都会自动注册为全局异步组件。无需建立统一入口，也无需在每篇 Markdown 中导入。 创建组件 新建 components/StatusBadge.vue： 在任意 Markdown 中直接使用： 组件命名 文件名会转换为 PascalCase： 组件只使用文件名，不包含上级目录。因此下面两个文件会产生冲突： 启动时 CoCoWiki 会报告冲突名称。可以将其中一个改为 ArchiveItemCard.vue。 导入静态数据 通过 @data 别名读取 data/： 这些 JSON 会随前端代码构建，不需要请求后端。 引用其他组件 Markdown 可以直接使用全局组件；在普通 .vue 文件内部，建议显式导入它依赖的子组件： 显式导入更容易让编辑器提供类型提示，也能清楚表达组件之间的依赖。 Markdown 中的相对导入与 include 在 Markdown 的 script 块中显式导入组件时，相对路径按源 Markdown 文件的位置解析。例如在 content/demo.md 中： 也可使用 @components/Chart.vue 或 @data/items.json，减少目录调整带来的修改。 跨目录 include 同样按源 Markdown 文件解析： 被引用文件必须存在；区域和行范围继续使用 VitePress 的 include 语法。含脚本的可复用 Markdown 片段建议使用 @components、@data 别名。代码围栏中的导入示例不会被当作实际导入改写。 静态资源与 base Vue 组件中需要引用 public/ 资源时，使用 withBase()： 这样部署到 /repo-name/ 等子路径时，图片地址仍然正确。 实际示例 下面的组件来自本站 components/DocBadge.vue，它直接嵌在当前 Markdown 页面中： 更完整的写法见 Markdown 与 Vue 示例 和 图鉴示例。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/config/home-and-navigation",
+      "route": "/manual/config/home-and-navigation",
+      "title": "首页与导航",
+      "description": "配置首页名称、说明、副标题、搜索和站点导航",
+      "category": "配置",
+      "tags": [
+        "首页",
+        "导航",
+        "Hero"
+      ],
+      "aliases": [
+        "首页配置",
+        "导航配置"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "首页与导航 建立首页 在 content/index.md 使用 home 布局： search: false 只让首页不进入搜索结果，不会隐藏首页搜索框。若要关闭站点搜索入口，请设置全局 search.enabled: false。 文案层级 字段 默认主题中的用途 name 最大号主标题；未设置时使用站点 title text 主标题下方的说明，建议保持为一句简短文案 tagline 灰色副标题，可省略 eyebrow 主标题上方的可选小字，通常不必设置 search.placeholder 搜索框提示文字 actions 搜索框下方的文字入口，支持 theme: brand 强调字重，默认 alt visual.image 首页展示区图片地址，自动应用 base visual.labels 图片下方的文字标签数组，也可以单独使用 note 页面底部的小字说明 hero 与配置中的 home 按第一层字段合并；同名字段以当前页面为准。例如在 Frontmatter 中设置 search，会替换整个 home.search 对象。 在站点配置中设置默认值 首页入口由 actions 的文字与链接组成，按数组顺序显示；每个入口可设置 theme: 'brand' 或 theme: 'alt'。 可在 home 或页面 hero 中补充图片与标签： 图片应放入对应的 public/ 路径。这个展示区与默认曲线背景是不同的区域。 首页背景 默认主题内置倒 8 曲线、侧边波纹和淡色背景层。线条缓慢漂移，不影响搜索、链接点击或键盘操作；深色模式有对应配色，系统开启“减少动态效果”时曲线保持静止。 背景没有单独的配置字段。如需隐藏，可通过 theme.styles 加载自定义 CSS： 若需要完全不同的首页结构，可使用 theme.components.Home 替换首页，见 布局与主题。 普通导航项 下拉导航 父项同时有 link 和 items 时，下拉菜单顶部会出现“查看全部”。移动端先打开导航，再点击父项按钮展开子项；按 Escape 可关闭导航。 导航项按配置数组顺序显示。文档底部“上一篇 / 下一篇”的阅读顺序由页面 order 控制，两者独立。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/features/search-and-archive",
+      "route": "/manual/features/search-and-archive",
+      "title": "搜索与归档",
+      "description": "了解构建期搜索索引、搜索范围和归档分类",
+      "category": "站点能力",
+      "tags": [
+        "搜索",
+        "归档",
+        "MiniSearch"
+      ],
+      "aliases": [
+        "全文搜索",
+        "归档页"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "搜索与归档 搜索包含什么 CoCoWiki 在构建期读取所有内容页面，并生成静态的 search-index.json。默认可以检索： 标题 title 别名 aliases 标签 tags 贡献者 contributors 页面描述 description Markdown 正文 正文和自动摘要提取前会排除完整的 script、style 块、代码围栏与 HTML 注释；纯 Vue 页面使用元数据中的标题、描述等字段，不扫描组件脚本或模板正文。 搜索结果会展示标题、类型或分类、描述以及命中的正文片段。标题和别名拥有更高权重；前缀匹配和少量模糊匹配默认开启。 上面的页面可以通过“皙折”“皙折同学”“CoCoWiki”“文档”或“Mueo”找到。 使用搜索 首页搜索框会前往完整搜索页。 导航栏搜索按钮会打开快速搜索浮层。 桌面端可以按 /、Command + K 或 Ctrl + K 打开快速搜索。 将输入焦点放在文本框中时，按 / 不会打断正常输入。在搜索页中通过浮层切换查询参数，或使用浏览器前进、后退时，输入框与结果会跟随当前 URL 更新。 控制搜索范围 关闭全站搜索入口： enabled: false 隐藏首页、导航和快捷键搜索入口，不会删除内容页面或公共内容索引。 按文件模式限制搜索收录： include 和 exclude 相对于内容目录，使用 glob 模式；默认匹配全部 .md、.page.vue 和 .page.json。显式设置 include: [] 时，没有页面参与搜索。 Vue 文件与同名 JSON 作为同一页面匹配：include 命中任一名称即可收录，exclude 命中任一名称则排除整页，且排除优先。例如 exclude: ['atlas.page.vue'] 不会被同名 JSON 绕过；JSON 尚未创建时，其名称也参与规则匹配。 这些 glob 只决定搜索资格，不会让页面从归档、相邻导航或贡献统计中消失。 只排除某一个页面： 搜索默认排除 home、search、archive、contributors 布局。单页 search: false 也会将该页面排除出相邻导航，但不影响归档和贡献统计。 归档页 建立一个内置归档页面： 归档会： 收集所有未设置 archive: false 的内容页面，排除 home、search 和 archive 布局。 优先按照 category 分组，没有分类时使用 type。 每组按页面标题排序。 提供只作用于归档内容的即时筛选框。 :::tip 分类字段 type 更适合保存稳定的程序化类型，例如 character；category 更适合显示给读者，例如“人物”。归档优先显示 category。 ::: 搜索索引是静态的 搜索不需要服务器。生产构建时，search-index.json 输出完整公共内容集合及各页的搜索资格，浏览器再派生搜索、归档、贡献统计和前后页导航。它不会包含本机绝对源路径、生成路径或原始脚本。 这些页面共享内容数据与搜索实例。开发模式下，已打开的页面会跟随内容更新；加载期间显示状态，失败时显示错误并提供重试入口。较旧的请求不会覆盖较新的结果。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/atlas",
+      "route": "/manual/atlas",
+      "title": "图鉴示例",
+      "description": "由静态 JSON 驱动，展示搜索、筛选、排序和贡献统计",
+      "category": "功能示例",
+      "tags": [
+        "Vue",
+        "筛选",
+        "静态数据"
+      ],
+      "aliases": [],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "由静态 JSON 驱动，展示搜索、筛选、排序和贡献统计",
+      "searchable": true
+    },
+    {
+      "id": "/manual/guide/project-structure",
+      "route": "/manual/guide/project-structure",
+      "title": "项目目录",
+      "description": "了解 CoCoWiki 用户项目中的目录与文件职责",
+      "category": "开始使用",
+      "tags": [
+        "目录",
+        "文件结构"
+      ],
+      "aliases": [],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "项目目录 一个常见的 CoCoWiki 站点如下： content/ 所有内容页面都从这里产生。Markdown 文件的相对路径就是页面地址： 文件 页面地址 content/index.md / content/world.md /world content/archive/index.md /archive/ content/archive/characters/rabbit.md /archive/characters/rabbit 目录页保留结尾的 /：content/archive.md 对应 /archive，content/archive/index.md 对应 /archive/，两者可以同时存在。目录页链接也应保留这个斜杠。路径中的中文和空格会进行 URL 编码；最终路由冲突时会报告源文件位置。 纯 Vue 页面也放在这里，文件名使用 .page.vue。具体规则见 三种页面形式。 components/ 这里的 .vue 文件会自动注册为全局组件，并采用异步加载。组件名由文件名转换而来： 文件 Markdown 中的写法 NoticeBadge.vue <NoticeBadge /> notice-badge.vue <NoticeBadge /> cards/PersonCard.vue <PersonCard /> 不同子目录中不能存在会转换为相同名称的组件，否则启动时会提示冲突。 data/ 用于保存物品列表、时间线、贡献者资料等静态数据。Vue 组件中可以通过别名导入： 贡献者资料固定读取 data/contributors.json，格式见 贡献者与署名。 public/ 文件会原样出现在构建结果根目录。例如： 在 Markdown、配置或 Vue 模板中使用： 当站点配置了 base 时，Markdown 链接由 VitePress 处理；Vue 组件中建议使用 VitePress 的 withBase() 生成资源地址。 自动生成目录 .cocowiki/ 是开发与构建时生成的内部运行目录，dist/ 是最终静态产物。两者都不应手动维护，也通常不提交到 Git。 不同命令分别使用独立的运行目录： 开发期间运行构建不会清空 site/。这些目录仍然只是自动生成的文件，部署时只发布 dist/。各运行目录的 .vitepress/manifest.json 记录源页面与生成文件的对应关系，用于清理已删除的内容；内容目录下的 .vitepress/ 是保留路径。 :::danger 不要把内容写进 .cocowiki/ 该目录可能在启动或配置变化时重新生成。长期内容只应写在 content/、components/、data/ 和 public/ 中。 ::: 自定义目录名 如果已有项目使用其他命名，可以在 cocowiki.config.ts 中修改： 输入目录不能互相重叠，也不能与 .cocowiki/ 或输出目录重叠；输出目录不能包含项目根目录。无效配置会在启动或构建前报告。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/config/site",
+      "route": "/manual/config/site",
+      "title": "站点配置",
+      "description": "配置站点名称、语言、网址根目录、图标和目录位置",
+      "category": "配置",
+      "tags": [
+        "配置",
+        "cocowiki.config.ts",
+        "base"
+      ],
+      "aliases": [
+        "基础配置"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "站点配置 项目根目录的 cocowiki.config.ts 是用户配置入口： 名称与描述 title 必填，显示在导航和浏览器标题中。 description 用作站点描述元信息，也可以成为首页默认副标题。 lang 写入页面语言属性，默认是 zh-CN。 Logo 与 favicon 把文件放进 public/： 然后配置： 如果没有单独填写 favicon，会尝试使用 logo；两者都未填写时使用默认 /favicon.svg 地址。 base 根域名部署： 部署到 https://example.com/my-wiki/： CoCoWiki 会自动规范开头和结尾的斜杠，但建议始终写成 /name/。导航、框架资源、favicon 和使用了 withBase() 的组件资源都会带上这个路径。 :::warning 修改后重新构建 base 属于构建期配置。修改后请重新运行 pnpm build，不要直接移动旧的 dist/。 ::: 自定义目录 所有路径都相对于项目根目录。没有必要时保留默认值即可。输入目录不能互相重叠，也不能与 .cocowiki/、输出目录重叠；输出目录不能包含项目根目录。 配置和页面元数据会在启动、构建及开发更新时进行运行时校验。字段类型、主题文件路径和页面身份冲突会报告具体文件与字段；开发配置校验失败时会保留现有可用服务，等待修复。 一份完整的基础配置 全部字段见 配置参考。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/reference/cli",
+      "route": "/manual/reference/cli",
+      "title": "CLI 命令",
+      "description": "使用 cocowiki dev、build 和 preview 管理站点",
+      "category": "参考",
+      "tags": [
+        "CLI",
+        "dev",
+        "build",
+        "preview"
+      ],
+      "aliases": [
+        "命令行",
+        "cocowiki 命令"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "CLI 命令 模板项目已经在 package.json 中准备好三个脚本： 通常通过包管理器脚本调用，不需要全局安装 CoCoWiki。 cocowiki dev 启动开发服务器： 指定端口： 允许局域网设备访问： 开发模式会监听： cocowiki.config.ts 及加载到的配置导入依赖（包括项目外的依赖） 内容目录中的 Markdown、.page.vue 和 .page.json 元数据 components/ 中的 Vue 组件 data/contributors.json 内容变化会增量同步并刷新共享内容数据；新增或删除全局组件时，组件注册入口会自动更新。已删除页面和资源的生成文件也会清理，资源路径可以在普通文件和目录之间转换。 开发会话缓存源文件的 Git 提交时间。普通正文编辑复用已知日期，组件与普通数据编辑复用已有内容快照；Git 历史变化后再更新日期缓存。 实例、端口与退出 同一项目只运行一个开发服务。再次执行 pnpm dev 会核对已有实例、显示预览地址并正常退出，不会启动第二个服务。 在原来启动服务的终端按 Ctrl + C 退出，再执行 pnpm dev 即可重新启动。默认端口已被其他程序占用时会报告错误；需要换端口时请显式传入 --port。 配置变化会串行重建服务。配置预检查失败时会输出原因并保留上一次可用预览；真正替换服务失败时会尝试恢复旧配置，监听本身保持有效。首次启动因配置或内容错误失败时，也会等待修复；已经加载的项目外配置依赖在校验前就会进入监听，只修正这个依赖即可触发重试。普通文档修改无需手动重启；更新依赖后应重新启动服务。 cocowiki build 生成生产环境静态文件： 默认输出到 dist/，可以通过 directories.out 修改。命令返回非零退出码时，不应继续部署这次产物。 构建会完成： 读取配置和内容目录。 生成纯 Vue 页面的路由入口。 扫描 Frontmatter 与 Markdown 正文。 生成静态搜索数据。 渲染 HTML 并打包客户端资源。 开发服务运行期间也可以执行构建；开发、构建和静态预览分别使用 .cocowiki/site、.cocowiki/build 和 .cocowiki/preview，构建不会清空开发运行目录。 cocowiki preview 预览最近一次构建结果： 指定端口： preview 不会重新构建。修改内容后请先再次执行 pnpm build。 常见报错 开发地址已在使用 如果提示复用当前项目的开发服务，请使用终端显示的地址。需要停止时，回到最初启动服务的终端按 Ctrl + C。端口被其他项目占用时，可使用 pnpm dev --port 4173，不要重复启动多个开发终端。 未找到配置文件 请在项目根目录运行命令，并确认配置文件名正确。 内容目录不存在 检查 directories.content 指向的目录是否存在。使用默认配置时需要有 content/。 全局组件名称冲突 两个 Vue 文件转换成了相同组件名。例如 status-badge.vue 和 StatusBadge.vue 都会注册为 StatusBadge。重命名其中一个即可。 元数据类型或页面身份冲突 错误信息中的文件路径和字段名可以定位问题。tags、aliases、contributors 应填写字符串数组，标题和描述使用字符串；不同页面的标题、别名与最终路由不能冲突。目录页 /guide/ 与普通页 /guide 是不同页面，可以同时存在。 页面能打开但资源 404 通常是部署地址与 base 不一致。根目录使用 /，仓库子目录使用 /repository/，修改后重新构建。 预览内容没有更新 preview 读取 dist/，不是源文件。先执行：",
+      "searchable": true
+    },
+    {
+      "id": "/manual/content/frontmatter",
+      "route": "/manual/content/frontmatter",
+      "title": "Frontmatter",
+      "description": "使用页面元信息控制标题、搜索、归档、贡献者与内容布局",
+      "category": "内容创作",
+      "tags": [
+        "Frontmatter",
+        "页面元信息",
+        "YAML"
+      ],
+      "aliases": [
+        "页面元信息"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "Frontmatter Frontmatter 是 Markdown 文件开头两条 --- 之间的 YAML 数据。CoCoWiki 用它生成页面标题、搜索索引、归档分类、贡献者和布局。 基础字段 字段 类型 说明 title string 页面标题；建议始终填写 description string 页面摘要，用于搜索结果和页面信息 type string 内容类型，例如 character、item category string 面向读者显示的分类，例如“人物” tags string[] 可搜索标签 aliases string[] 别名，可用于搜索和 Wiki 内链 contributors string[] 贡献者键名 image string 页面相关图片地址，供组件或自定义主题使用 order number 底部相邻页面导航的阅读顺序，数字越小越靠前 updated string 有效日期字符串，覆盖默认页脚使用的源文件 Git 提交时间 如果未填写 title，普通 Markdown 会尝试使用正文中的第一个可见一级标题，再回退到文件名；纯 Vue 页面默认使用文件名。为了让搜索和归档保持稳定，仍建议显式填写。 标题、描述等文本字段需要使用字符串；tags、aliases、contributors 必须是字符串数组。错误信息会指出文件路径和字段名，例如 tags: 示例 应改成 tags: [示例]。不同页面之间的标题和别名也不能冲突，否则 Wiki 内链无法唯一定位。 最后更新时间 默认页脚优先使用手动设置的 updated： 也可以使用带时区的 ISO 日期字符串。未设置时读取源 Markdown 文件的最近 Git 提交时间；纯 Vue 页面取 .page.vue 与现存同名 .page.json 中较新的提交时间。没有手动日期、也没有源文件提交记录时，不显示日期。未提交的编辑不会自动成为新的提交时间。 showLastUpdated: false 只隐藏当前页的日期，不会改变搜索和归档收录。 搜索与归档 search: false：不进入全文搜索索引。 archive: false：不显示在归档列表中。 两个选项互不影响。某个页面可以不出现在搜索中，但仍保留在归档里。 文档阅读顺序 在页面 Frontmatter 设置 order，底部“上一篇 / 下一篇”按数值从小到大排列： 例如 10 → 20 → 30；插入新页面时可使用 15。支持负数、零和小数，请填写 YAML 数值，避免写成带引号的字符串。 未设置、类型不是数字或数值不是有限数的 order 排在已设置页面后面。 数值相同时按标题排序，标题也相同时按页面路径排序，保证结果稳定。 home、search、archive、contributors 布局和 search: false 的页面不参与相邻页面导航。 showPrevNext: false 只隐藏当前页的导航，不会把当前页移出阅读顺序。 此顺序不改变搜索排名、归档分组或顶部导航顺序。 全局启用导航： 纯 Vue 页面在同名 .page.json 中设置： 开发模式下保存文档或页面元数据后，相邻页面链接会自动更新。 内容布局 字段 可选值 说明 outline true / false 是否显示当前页面标题目录 sidebar none / light / outline 无侧栏、轻侧栏或右侧目录 showPrevNext boolean 是否显示上一篇与下一篇 showLastUpdated boolean 是否显示构建得到的最后更新时间 单页设置优先于 cocowiki.config.ts 中的全局 content 设置。 :::info outline 与 sidebar outline 的明确",
+      "searchable": true
+    },
+    {
+      "id": "/manual/examples/markdown-vue",
+      "route": "/manual/examples/markdown-vue",
+      "title": "Markdown 与 Vue 示例",
+      "description": "在 Markdown 正文中直接使用全局 Vue 组件",
+      "category": "功能示例",
+      "tags": [
+        "Markdown",
+        "Vue",
+        "全局组件"
+      ],
+      "aliases": [],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "Markdown 与 Vue 示例 这段标题、正文和列表来自普通 Markdown： 页面仍然拥有右侧目录。 Frontmatter 仍然参与搜索和归档。 只在需要的位置加入 Vue 组件。 组件调用代码 由于组件位于 components/，CoCoWiki 已经完成全局注册。",
+      "searchable": true
+    },
+    {
+      "id": "/manual/content/markdown",
+      "route": "/manual/content/markdown",
+      "title": "Markdown 与扩展",
+      "description": "在 CoCoWiki 中使用标准 Markdown、Wiki 内链、剧透和提示容器",
+      "category": "内容创作",
+      "tags": [
+        "Markdown",
+        "WikiLink",
+        "剧透",
+        "提示框"
+      ],
+      "aliases": [
+        "Markdown 语法",
+        "自定义 Markdown"
+      ],
+      "contributors": [
+        "Mueo"
+      ],
+      "content": "Markdown 与扩展 CoCoWiki 兼容 VitePress 支持的标准 Markdown，并在其上加入少量适合资料站的语法。标题、列表、引用、表格、图片和代码块可以照常使用。 标题与目录 右侧目录会从二级、三级标题生成。一个页面建议只保留一个一级标题；是否显示目录可以在站点或单页配置中控制。 链接与图片 放在 public/ 下的资源从 / 开始引用。 Wiki 内链 用双方括号按页面标题或别名链接： 实际效果：阅读 快速开始，然后查看 Frontmatter。 如果目标标题尚不存在，链接会前往搜索页并自动搜索括号中的文字。页面别名来自 Frontmatter 的 aliases。不同页面的标题与别名需要保持唯一，冲突时会报告涉及的源文件。开发时新增页面、修改标题或别名后，已有引用页的内链也会重新编译，无需重启。 剧透 实际效果：||这里藏着一段剧透。|| 剧透默认被遮挡，可通过鼠标悬停、键盘聚焦或点击显示；再次点击会隐藏。 提示容器 信息 :::info 补充信息 这里是一段背景说明。 ::: 提示 :::tip 写作建议 为页面填写 description，可以改善搜索结果摘要。 ::: 注意与警告 :::warning 注意 修改 base 后应重新执行构建。 ::: :::danger 警告 不要直接修改 .cocowiki 目录。 ::: 可折叠内容 :::details 查看完整说明 这里的内容默认折叠。 ::: 表格 较宽的表格在移动端会自动放入横向滚动区域，不会撑破页面。 代码块 在围栏后写语言名称即可获得语法高亮： 代码块支持复制按钮，过长内容会在块内滚动。 开关扩展语法 Wiki 内链和剧透可以在配置中关闭： 提示容器、表格包装和标准 Markdown 始终可用。",
+      "searchable": true
+    }
+  ]
+}

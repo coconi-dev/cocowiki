@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import { useContentStore } from '../content'
+import { searchDocuments } from '../search'
+import SearchHighlight from './SearchHighlight.vue'
 import ContentStatus from './ContentStatus.vue'
 
 const emit = defineEmits<{ close: [] }>()
@@ -14,7 +16,7 @@ const router = useRouter()
 const { searchable, index: miniSearch, loading, error, retry } = useContentStore()
 const results = computed(() => {
   if (!query.value.trim()) return searchable.value.slice(0, 5)
-  return miniSearch.value?.search(query.value, { combineWith: 'AND' }).slice(0, 6) || []
+  return searchDocuments(miniSearch.value, query.value).slice(0, 6)
 })
 function go(route: string) { emit('close'); router.go(withBase(route)) }
 function keydown(event: KeyboardEvent) {
@@ -50,9 +52,9 @@ onUnmounted(() => {
         <button class="cw-search-close" type="button" aria-label="关闭搜索" @click="emit('close')">×</button>
       </div>
       <div class="cw-search-dialog__results">
-        <button v-for="item in results" :key="item.route" @click="go(item.route)"><span>{{ item.category || item.type }}</span><strong>{{ item.title }}</strong><small>{{ item.description }}</small></button>
+        <button v-for="item in results" :key="item.route" @click="go(item.route)"><span>{{ item.category || item.type }}</span><strong><SearchHighlight :text="item.title" :query="query" /></strong><small><SearchHighlight :text="item.description || ''" :query="query" /></small></button>
         <ContentStatus :loading="loading" :error="error" @retry="retry" />
-        <p v-if="!loading && !error && !results.length">没有找到相关记录</p>
+        <p v-if="!loading && !error && !results.length">没有找到相关记录，试试更短的关键词，或查看完整搜索页。</p>
       </div>
       <button class="cw-search-dialog__all" @click="go(`/search?q=${encodeURIComponent(query)}`)">查看全部搜索结果 <span>→</span></button>
     </div>

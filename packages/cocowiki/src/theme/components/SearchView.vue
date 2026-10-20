@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import type { ContentRecord } from '../../shared/content'
 import { useContentStore } from '../content'
+import { searchDocuments, searchSnippet, suggestQueries } from '../search'
+import SearchHighlight from './SearchHighlight.vue'
 import ContentStatus from './ContentStatus.vue'
 
 type SearchResultRecord = ContentRecord & { contributorNames?: string[] }
@@ -17,23 +19,12 @@ const { searchable, index: miniSearch, loading, error, retry } = useContentStore
 const types = computed(() => [...new Set(searchable.value.map((item) => item.category || item.type).filter((value): value is string => Boolean(value)))])
 const results = computed(() => {
   const found = query.value.trim()
-    ? miniSearch.value?.search(query.value, { combineWith: 'AND' }) || []
+    ? searchDocuments(miniSearch.value, query.value)
     : searchable.value.map((item) => ({ ...item, id: item.route, score: 0 }))
   return found.filter((item) => type.value === 'all' || item.category === type.value || item.type === type.value)
 })
 
-function snippet(content = '', needle = '') {
-  const plain = content.replace(/\s+/g, ' ')
-  const index = plain.toLocaleLowerCase().indexOf(needle.toLocaleLowerCase())
-  if (index < 0) return plain.slice(0, 110)
-  return `${index > 35 ? '…' : ''}${plain.slice(Math.max(0, index - 35), index + needle.length + 65)}${index + needle.length + 65 < plain.length ? '…' : ''}`
-}
-
-function matchSnippet(item: SearchResultRecord, needle: string) {
-  const names = item.contributorNames || item.contributors || []
-  const contributorMatch = names.some((name) => name.toLocaleLowerCase().includes(needle.toLocaleLowerCase()))
-  return contributorMatch ? `贡献者：${names.join('、')}` : snippet(item.content, needle)
-}
+const suggestions = computed(() => suggestQueries(searchable.value, query.value))
 
 onMounted(() => {
   const syncQuery = (href: string) => { query.value = new URL(href, location.href).searchParams.get('q') || '' }
@@ -68,11 +59,11 @@ onUnmounted(() => {
         <div class="cw-results__summary" role="status"><strong>{{ results.length }}</strong> 条结果 <span v-if="query">关于“{{ query }}”</span></div>
         <a v-for="item in results" :key="item.id" class="cw-result" :href="withBase(item.route as string)">
           <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span></div>
-          <h2>{{ item.title }}</h2>
-          <p>{{ item.description }}</p>
-          <blockquote v-if="query">{{ matchSnippet(item as SearchResultRecord, query) }}</blockquote>
+          <h2><SearchHighlight :text="item.title" :query="query" /></h2>
+          <p><SearchHighlight :text="item.description || ''" :query="query" /></p>
+          <blockquote v-if="query"><SearchHighlight :text="searchSnippet(item as SearchResultRecord, query)" :query="query" /></blockquote>
         </a>
-        <div v-if="!loading && !error && !results.length" class="cw-empty"><strong>没有找到相关记录</strong><p>换一个名字、别名或更短的关键词试试。</p></div>
+        <div v-if="!loading && !error && !results.length" class="cw-empty"><strong>没有找到相关记录</strong><p>多个关键词需要同时命中。试试单个名称、别名，或缩短关键词。</p><button v-if="type !== 'all'" type="button" @click="type = 'all'">清除分类筛选</button><p v-if="suggestions.length">可以搜索：<button v-for="suggestion in suggestions" :key="suggestion" type="button" @click="query = suggestion">{{ suggestion }}</button></p><a :href="withBase('/archive')">浏览全部词条</a></div>
       </section>
     </div>
   </div>
