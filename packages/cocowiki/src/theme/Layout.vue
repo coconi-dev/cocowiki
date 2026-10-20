@@ -8,6 +8,7 @@ import DefaultPageMeta from './components/PageMeta.vue'
 import DefaultPageOutline from './components/PageOutline.vue'
 import DefaultContentSidebar from './components/ContentSidebar.vue'
 import DefaultPageNavigation from './components/PageNavigation.vue'
+import DefaultPageRelations from './components/PageRelations.vue'
 import DefaultPageFooter from './components/PageFooter.vue'
 import DefaultLoadingView from './components/LoadingView.vue'
 import DefaultNotFoundView from './components/NotFoundView.vue'
@@ -28,6 +29,7 @@ const PageMeta = overrides.PageMeta || DefaultPageMeta
 const PageOutline = overrides.PageOutline || DefaultPageOutline
 const ContentSidebar = overrides.ContentSidebar || DefaultContentSidebar
 const PageNavigation = overrides.PageNavigation || DefaultPageNavigation
+const PageRelations = overrides.PageRelations || DefaultPageRelations
 const PageFooter = overrides.PageFooter || DefaultPageFooter
 const SearchOverlay = overrides.SearchOverlay || DefaultSearchOverlay
 const LoadingView = overrides.Loading || DefaultLoadingView
@@ -102,6 +104,7 @@ onUnmounted(() => {
               <article class="cw-doc">
                 <PageMeta />
                 <component :is="route.component" class="cw-prose" v-bind="site.contentProps" />
+                <PageRelations />
                 <PageNavigation v-if="showPrevNext" />
                 <PageFooter :show-last-updated="showLastUpdated" />
               </article>

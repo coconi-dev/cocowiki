@@ -22,6 +22,7 @@ export interface CocoWikiThemeComponents {
   PageOutline?: string
   ContentSidebar?: string
   PageNavigation?: string
+  PageRelations?: string
   PageFooter?: string
   SearchOverlay?: string
   Loading?: string
@@ -88,6 +89,8 @@ export interface CocoWikiPageMeta {
   aliases?: string[]
   contributors?: string[]
   image?: string
+  /** Related page titles, aliases or canonical routes. */
+  related?: string[]
   updated?: string
   search?: boolean
   archive?: boolean

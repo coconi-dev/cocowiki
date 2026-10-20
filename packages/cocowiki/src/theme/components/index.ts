@@ -12,3 +12,5 @@ export { default as PageOutline } from './PageOutline.vue'
 export { default as SearchOverlay } from './SearchOverlay.vue'
 export { default as SearchView } from './SearchView.vue'
 export { default as SiteHeader } from './SiteHeader.vue'
+
+export { default as PageRelations } from './PageRelations.vue'

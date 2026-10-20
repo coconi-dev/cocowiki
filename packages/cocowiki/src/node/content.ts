@@ -7,21 +7,12 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { ContentPage } from '../shared/content'
 import { routeFromPath } from '../shared/routes'
+import { analyzeDocument } from './document'
+import { linkPages } from './relations'
 import { ContentError, validateMeta } from './validation'
 export type { ContentPage, ContentRecord, SearchRecord } from '../shared/content'
 const exec = promisify(execFile)
 
-function visibleMarkdown(markdown: string) {
-  return markdown
-    .replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\2[ \t]*$/gm, ' ')
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-}
-function plainText(markdown: string) {
-  return markdown.replace(/<[^>]+>/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/[#>*_`~|:-]/g, ' ').replace(/\s+/g, ' ').trim()
-}
 type GitRunner = (args: string[], cwd: string) => Promise<string>
 const runGit: GitRunner = async (args, cwd) => (await exec('git', args, { cwd })).stdout
 
@@ -54,7 +45,7 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
     } catch { return undefined }
   }
 
-  async function scan(options: { include?: string[]; exclude?: string[] } = {}, changedFiles?: ReadonlySet<string>): Promise<ContentPage[]> {
+  async function scan(options: { include?: string[]; exclude?: string[] } = {}, changedFiles?: ReadonlySet<string>, wikiEnabled = true): Promise<ContentPage[]> {
     const previousFailure = failed
     failed = true
     let nextRevision: string | undefined
@@ -90,21 +81,22 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
       let page = prior?.page
       if (!prior || prior.signature !== currentSignature) {
         let raw: unknown, content = '', sourceContent = '', heading: string | undefined
+        let analysis: ReturnType<typeof analyzeDocument> | undefined
         try {
           if (kind === 'vue') raw = hasMetadata ? JSON.parse(await readFile(metadataPath, 'utf8')) : {}
           else {
             sourceContent = await readFile(sourcePath, 'utf8')
             const parsed = matter(sourceContent)
             raw = parsed.data
-            const visible = visibleMarkdown(parsed.content)
-            content = plainText(visible)
-            heading = visible.match(/^#\s+(.+)$/m)?.[1]?.trim()
+            analysis = analyzeDocument(parsed.content)
+            content = analysis.text
+            heading = analysis.headings.find(heading => heading.level === 1)?.title
           }
         } catch (error) { throw new ContentError(kind === 'vue' ? metadataPath : sourcePath, 'metadata', String(error)) }
         const meta = validateMeta(raw, kind === 'vue' ? metadataPath : sourcePath)
         const route = routeFromPath(path)
         page = {
-          ...meta, id: route, route, sourcePath, kind, sourceContent, frontmatter: meta as Record<string, unknown>,
+          ...meta, id: route, route, sourcePath, kind, sourceContent, analysis, frontmatter: meta as Record<string, unknown>,
           generatedPath: path.replace(/\.page\.vue$/, '.md'),
           title: meta.title || heading || basename(path).replace(/(?:\.page\.vue|\.md)$/, ''),
           layout: kind === 'vue' ? 'special' : meta.layout,
@@ -132,17 +124,20 @@ export function createContentScanner(contentRoot: string, git: GitRunner = runGi
     }
     const records = sorted.flatMap(path => next.has(path) ? [next.get(path)!.page] : [])
     validateIdentities(records)
+    const linked = linkPages(records, wikiEnabled)
+    const bySource = new Map(linked.map(page => [page.sourcePath, page]))
+    for (const entry of next.values()) entry.page = bySource.get(entry.page.sourcePath)!
     cached = next
     initialized = true
     failed = false
-    return records.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+    return linked.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
   }
   return { scan, invalidateGit() { dates.clear(); historyInvalidated = true } }
 }
 
 /** One-shot scanner for builds and callers without a development session. */
-export async function scanContent(contentRoot: string, options: { include?: string[]; exclude?: string[] } = {}) {
-  return createContentScanner(contentRoot).scan(options)
+export async function scanContent(contentRoot: string, options: { include?: string[]; exclude?: string[] } = {}, markdown: { wikiLink?: boolean } = {}) {
+  return createContentScanner(contentRoot).scan(options, undefined, markdown.wikiLink !== false)
 }
 
 function validateIdentities(records: ContentPage[]) {
@@ -161,5 +156,5 @@ function validateIdentities(records: ContentPage[]) {
 }
 
 export function publicRecords(pages: ContentPage[]) {
-  return pages.map(({ sourcePath, generatedPath, sourceContent, frontmatter, kind, ...record }) => record)
+  return pages.map(({ sourcePath, generatedPath, sourceContent, analysis, frontmatter, kind, ...record }) => record)
 }

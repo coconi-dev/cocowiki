@@ -18,7 +18,7 @@ export function validateMeta(value: unknown, file: string): Partial<CocoWikiPage
   for (const key of ['title', 'layout', 'description', 'type', 'category', 'image']) {
     if (meta[key] !== undefined && typeof meta[key] !== 'string') throw new ContentError(file, key, '必须是字符串')
   }
-  for (const key of ['tags', 'aliases', 'contributors']) {
+  for (const key of ['tags', 'aliases', 'contributors', 'related']) {
     if (meta[key] !== undefined && (!Array.isArray(meta[key]) || !(meta[key] as unknown[]).every(v => typeof v === 'string'))) throw new ContentError(file, key, '必须是字符串数组')
   }
   for (const key of ['search', 'archive', 'outline', 'showPrevNext', 'showLastUpdated']) {
@@ -34,7 +34,7 @@ export function validateMeta(value: unknown, file: string): Partial<CocoWikiPage
   if (typeof meta.order !== 'number' || !Number.isFinite(meta.order)) delete meta.order
   return meta as Partial<CocoWikiPageMeta>
 }
-const componentNames = new Set(['Header', 'Home', 'Search', 'Archive', 'Contributors', 'PageMeta', 'PageOutline', 'ContentSidebar', 'PageNavigation', 'PageFooter', 'SearchOverlay', 'Loading', 'NotFound'])
+const componentNames = new Set(['Header', 'Home', 'Search', 'Archive', 'Contributors', 'PageMeta', 'PageOutline', 'ContentSidebar', 'PageNavigation', 'PageFooter', 'PageRelations', 'SearchOverlay', 'Loading', 'NotFound'])
 function inside(parent: string, child: string) {
   const path = relative(parent, child)
   return !path || (!path.startsWith('..') && !isAbsolute(path))

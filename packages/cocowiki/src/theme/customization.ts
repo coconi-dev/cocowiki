@@ -10,6 +10,7 @@ export interface CocoWikiThemeComponentOverrides {
   PageOutline?: Component
   ContentSidebar?: Component
   PageNavigation?: Component
+  PageRelations?: Component
   PageFooter?: Component
   SearchOverlay?: Component
   Loading?: Component

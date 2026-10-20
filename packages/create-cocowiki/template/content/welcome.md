@@ -1,6 +1,7 @@
 ---
 title: 欢迎使用 CoCoWiki
 order: 1
+related: [组件图鉴]
 description: 了解内容编写、组件使用与站点配置。
 type: guide
 category: 使用指南

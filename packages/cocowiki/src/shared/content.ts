@@ -1,3 +1,4 @@
+import type { DocumentAnalysis } from '../node/document'
 import type { CocoWikiPageMeta } from '../config'
 
 /** Browser-facing projection. It contains no machine-local paths or raw scripts. */
@@ -8,6 +9,9 @@ export interface ContentRecord extends CocoWikiPageMeta {
   excerpt: string
   searchable: boolean
   lastUpdated?: number
+  references?: string[]
+  backlinks?: string[]
+  relatedLinks?: string[]
 }
 
 /** One parsed source page, shared by generation and VitePress adaptation. */
@@ -15,6 +19,7 @@ export interface ContentPage extends ContentRecord {
   sourcePath: string
   kind: 'markdown' | 'vue'
   generatedPath: string
+  analysis?: DocumentAnalysis
   sourceContent: string
   frontmatter: Record<string, unknown>
 }

@@ -116,7 +116,7 @@ export async function createVitePressConfig(
   validateConfig(config, projectRoot)
   const paths = resolveProjectPaths(projectRoot, config, runtimeRoot)
   if (!existsSync(paths.contentDir)) throw new Error(`内容目录不存在：${paths.contentDir}`)
-  const records = [...(snapshots.get(paths.runtimeRoot)?.pages || await scanContent(paths.contentDir, config.search))]
+  const records = [...(snapshots.get(paths.runtimeRoot)?.pages || await scanContent(paths.contentDir, config.search, config.markdown))]
   const base = normalizeBase(config.base)
   const favicon = config.favicon || config.logo || '/favicon.svg'
   const faviconType = favicon.endsWith('.svg') ? 'image/svg+xml' : favicon.endsWith('.ico') ? 'image/x-icon' : 'image/png'

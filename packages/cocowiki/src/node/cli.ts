@@ -80,7 +80,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     const current = snapshots.get(root)?.pages
     const pages = current && contentChanges?.size === 0 && !historyChanged
       ? current
-      : await scanner.scan(config.search, contentChanges)
+      : await scanner.scan(config.search, contentChanges, config.markdown?.wikiLink !== false)
     const previous = new Map(current?.map(page => [page.sourcePath, page]))
     // Components/data do not require reading or reparsing every Markdown page.
     const validatePages = changes === undefined || historyChanged || [...(contentChanges || [])].some(file => !/\.(md|vue|json)$/.test(file))
