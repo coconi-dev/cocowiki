@@ -32,12 +32,16 @@ export function analyzeDocument(source: string): DocumentAnalysis {
   const text: string[] = []
   for (let i = 0; i < tokens.length; i++) {
     const block = tokens[i]
+    if (block.type === 'html_block' && !/^\s*<(?:script|style)\b/i.test(block.content)) {
+      for (const match of block.content.matchAll(/<(a|img)\b[^>]*?\b(href|src)=["']([^"']+)["'][^>]*>/gi)) result.links.push({ target: match[3], line: (block.map?.[0] || 0) + 1, image: match[1].toLowerCase() === 'img' })
+    }
     if (block.type !== 'inline') continue
     const line = (block.map?.[0] || 0) + 1
     let hidden: string | undefined
     const visible: string[] = []
     for (const child of block.children || []) {
       if (child.type === 'html_inline') {
+        for (const match of child.content.matchAll(/<(a|img)\b[^>]*?\b(href|src)=["']([^"']+)["'][^>]*>/gi)) if (!hidden) result.links.push({ target: match[3], line, image: match[1].toLowerCase() === 'img' })
         const open = child.content.match(/^<(script|style)\b/i)
         if (open) hidden = open[1].toLowerCase()
         if (hidden && new RegExp(`^<\\/${hidden}\\s*>`, 'i').test(child.content)) hidden = undefined

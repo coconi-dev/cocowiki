@@ -3,8 +3,9 @@ import { resolve, relative, dirname } from 'node:path'
 import { loadConfigFromFile } from 'vite'
 import { build, createServer, disposeMdItInstance, serve } from 'vitepress'
 import { acquireDevInstance } from './dev-instance'
+import { checkContent } from './check'
 import { createContentScanner } from './content'
-import { validateConfig } from './validation'
+import { ContentError, validateConfig } from './validation'
 import { prepareRuntime, preflightRuntime } from './runtime'
 import { snapshots } from './snapshot'
 import { resolveProjectPaths, runtimePath, type RuntimeMode } from './project'
@@ -28,11 +29,13 @@ function parseOptions(args: string[]) {
 }
 
 export async function run(args = process.argv.slice(2), projectRoot = process.cwd()) {
-  const command = (args[0] || 'dev') as RuntimeMode
-  if (!['dev', 'build', 'preview'].includes(command)) throw new Error(`未知命令“${command}”，可用命令为 dev、build、preview。`)
-  const options = parseOptions(args.slice(1))
+  const command = (args[0] || 'dev') as RuntimeMode | 'check'
+  if (!['dev', 'build', 'preview', 'check'].includes(command)) throw new Error(`未知命令“${command}”，可用命令为 dev、build、preview、check。`)
+  const json = command === 'check' && args.includes('--json')
+  const options = parseOptions(command === 'check' ? args.slice(1).filter(arg => arg !== '--json') : args.slice(1))
   const configFile = resolve(projectRoot, 'cocowiki.config.ts')
-  const root = runtimePath(projectRoot, command)
+  const mode: RuntimeMode = command === 'check' ? 'build' : command
+  const root = runtimePath(projectRoot, mode)
   const instance = command === 'dev' ? await acquireDevInstance(projectRoot) : undefined
   if (instance?.kind === 'existing') {
     log.info(`开发服务已在运行：${instance.url}（PID ${instance.pid}）`)
@@ -85,12 +88,28 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     // Components/data do not require reading or reparsing every Markdown page.
     const validatePages = changes === undefined || historyChanged || [...(contentChanges || [])].some(file => !/\.(md|vue|json)$/.test(file))
       ? pages : pages.filter(page => previous.get(page.sourcePath) !== page)
-    await preflightRuntime(projectRoot, config, command, validatePages)
+    await preflightRuntime(projectRoot, config, mode, validatePages)
     return pages
+  }
+  if (command === 'check') {
+    let issues
+    try { issues = await checkContent(await readConfig(), projectRoot) } catch (error) {
+      if (!json) throw error
+      console.log(JSON.stringify({ issues: [{ code: 'invalid-content', file: relative(projectRoot, error instanceof ContentError ? error.file : configFile), line: 1, target: error instanceof ContentError ? error.field : '', message: error instanceof Error ? error.message : String(error) }] }, null, 2))
+      process.exitCode = 1
+      return
+    }
+    if (json) console.log(JSON.stringify({ issues }, null, 2))
+    else {
+      for (const issue of issues) log.info(`${issue.file}:${issue.line} [${issue.code}] ${issue.message}：${issue.target}`)
+      log.info(issues.length ? `发现 ${issues.length} 个内容问题` : '内容检查通过')
+    }
+    if (issues.length) process.exitCode = 1
+    return
   }
   if (command !== 'dev') {
     const config = await readConfig()
-    await prepareRuntime(projectRoot, config, command, await preflight(config))
+    await prepareRuntime(projectRoot, config, mode, await preflight(config))
     if (command === 'build') { await build(root); log.info(`✓ 构建完成：${resolveProjectPaths(projectRoot, config).outDir}`) }
     else await serve({ root, ...options })
     return
@@ -153,7 +172,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
         return
       }
       if (!replace) {
-        await prepareRuntime(projectRoot, next, command, pages, changes)
+        await prepareRuntime(projectRoot, next, mode, pages, changes)
         snapshots.get(root)?.notify?.()
         return
       }
@@ -163,7 +182,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
       server = undefined
       disposeMdItInstance()
       try {
-        await prepareRuntime(projectRoot, next, command, pages)
+        await prepareRuntime(projectRoot, next, mode, pages)
         await start(next)
         config = next
         watchExternal(next)
@@ -173,7 +192,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
         configurationFailed = true
         // An upstream startup failure must not end the independent watcher.
         if (previous) {
-          await prepareRuntime(projectRoot, previous, command, await preflight(previous))
+          await prepareRuntime(projectRoot, previous, mode, await preflight(previous))
           await start(previous)
         } else throw error
       }

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "cocowiki dev",
     "build": "cocowiki build",
-    "preview": "cocowiki preview"
+    "preview": "cocowiki preview",
+    "check": "cocowiki check"
   },
   "dependencies": {
     "cocowiki": "workspace:*",

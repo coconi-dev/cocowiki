@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = resolve(root, 'packages/cocowiki')
 const { build } = createRequire(resolve(pkg, 'package.json'))('esbuild')
@@ -14,7 +14,7 @@ before(async () => {
   temporary = await mkdtemp(resolve(tmpdir(), 'cocowiki-model-'))
   await symlink(resolve(pkg, 'node_modules'), resolve(temporary, 'node_modules'), 'dir')
   const out = resolve(temporary, 'model.mjs')
-  await build({ stdin: { contents: `export * from './src/node/content'; export * from './src/node/validation'; export * from './src/node/runtime'; export * from './src/node/markdown'; export * from './src/shared/routes'; export * from './src/theme/search'; export * from './src/theme/archive';`, resolveDir: pkg }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: out })
+  await build({ stdin: { contents: `export * from './src/node/content'; export * from './src/node/check'; export * from './src/node/validation'; export * from './src/node/runtime'; export * from './src/node/markdown'; export * from './src/shared/routes'; export * from './src/theme/search'; export * from './src/theme/archive';`, resolveDir: pkg }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: out })
   api = await import(pathToFileURL(out).href)
 })
 after(async () => { if (temporary) await rm(temporary, { recursive: true, force: true }) })
@@ -282,4 +282,34 @@ test('backlinks and manual relations resolve aliases/routes, ignore examples and
   assert.deepEqual(pages.find(page => page.route === '/a').relatedLinks, ['/b/'])
   assert.deepEqual(pages.find(page => page.route === '/b/').backlinks || [], [])
   assert.ok(!JSON.stringify(api.publicRecords(pages)).includes('analysis'))
+})
+
+test('quality checker reports actionable Wiki, path, anchor, image and contributor problems', async () => {
+  const site = await fixture()
+  await put(site, 'data/contributors.json', '{"Registered":{"name":"Registered"}}')
+  await put(site, 'public/image.png', 'image')
+  await put(site, 'content/index.md', '---\ntitle: Home\ncontributors: [Registered, Unknown]\nrelated: [Missing Related]\n---\n[[Missing Wiki]]\n[[Destination]]\n[valid](/wiki/dest#中文标题)\n[bad anchor](/wiki/dest#absent)\n[bad path](/missing)\n![missing](/missing.png)\n![ok](/wiki/image.png)\n`[[Example]]`\n')
+  await put(site, 'content/dest.md', '---\ntitle: Destination\n---\n## 中文标题\n')
+  const issues = await api.checkContent({ title: 'Check', base: '/wiki/' }, site)
+  assert.deepEqual(issues.map(issue => issue.code).sort(), ['missing-anchor', 'missing-image', 'missing-page', 'unknown-contributor', 'unresolved-related', 'unresolved-wiki'])
+  assert.ok(issues.every(issue => issue.file.startsWith('content/') && issue.line > 0))
+  assert.equal(issues.find(issue => issue.code === 'unresolved-wiki').line, 6)
+  await put(site, 'content/index.md', '---\ntitle: Home\ncontributors: [Registered]\n---\n[[Destination]]\n[valid](dest.md#中文标题)\n![ok](/wiki/image.png)\n')
+  assert.deepEqual(await api.checkContent({ title: 'Check', base: '/wiki/' }, site), [])
+})
+
+test('check command emits JSON, uses issue exit codes and never generates a runtime', async () => {
+  const site = await fixture()
+  await put(site, 'cocowiki.config.ts', 'export default { title: "CLI check" }')
+  await put(site, 'content/index.md', '---\ntitle: Home\n---\n[[Unresolved]]')
+  const cli = resolve(pkg, 'bin/cocowiki.mjs')
+  const result = spawnSync(process.execPath, [cli, 'check', '--json'], { cwd: site, encoding: 'utf8' })
+  assert.equal(result.status, 1, result.stderr)
+  assert.equal(JSON.parse(result.stdout).issues[0].code, 'unresolved-wiki')
+  const { stat } = await import('node:fs/promises')
+  await assert.rejects(stat(resolve(site, '.cocowiki')), { code: 'ENOENT' })
+  await put(site, 'content/index.md', '---\ntitle: Home\n---\nAll clear')
+  const clean = spawnSync(process.execPath, [cli, 'check', '--json'], { cwd: site, encoding: 'utf8' })
+  assert.equal(clean.status, 0, clean.stderr)
+  assert.deepEqual(JSON.parse(clean.stdout), { issues: [] })
 })
