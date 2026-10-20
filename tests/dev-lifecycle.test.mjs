@@ -345,3 +345,29 @@ test('invalid replacement configs recover; source snapshot drives Vue discovery 
   await readFile(resolve(fixture, 'dist/guide.html'))
   await readFile(resolve(fixture, 'dist/guide/index.html'))
 })
+
+test('first invalid config recovers when only an external imported dependency is repaired', { timeout: 30000 }, async (t) => {
+  const workspace = await mkdtemp(resolve(tmpdir(), 'cocowiki-external-config-'))
+  const site = resolve(workspace, 'site')
+  const shared = resolve(workspace, 'shared')
+  let dev
+  t.after(async () => {
+    if (dev?.process.exitCode === null) { const exited = once(dev.process, 'exit'); dev.process.kill('SIGTERM'); await exited }
+    await rm(workspace, { recursive: true, force: true })
+  })
+  await mkdir(resolve(site, 'content'), { recursive: true })
+  await mkdir(shared)
+  await symlink(resolve(repository, 'playground/node_modules'), resolve(site, 'node_modules'), 'dir')
+  await writeFile(resolve(site, 'content/index.md'), '# Home\n')
+  await writeFile(resolve(site, 'cocowiki.config.ts'), "export { default } from '../shared/config'\n")
+  const dependency = resolve(shared, 'config.ts')
+  await writeFile(dependency, 'export default { title: "" }\n')
+  const port = await freePort()
+  dev = launch(['dev', '--host', '127.0.0.1', '--port', String(port)], site)
+  await waitForOutput(dev.output, /配置文件必须提供 title/)
+  assert.equal(dev.process.exitCode, null)
+  await writeFile(dependency, 'export default { title: "External repair" }\n')
+  await waitForResponse(`http://127.0.0.1:${port}/@siteData`, 'External repair', dev.output)
+  await writeFile(dependency, 'export default { title: "External edit" }\n')
+  await waitForResponse(`http://127.0.0.1:${port}/@siteData`, 'External edit', dev.output)
+})

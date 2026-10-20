@@ -44,10 +44,30 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     process.once('exit', () => owner.release())
   }
   let configDependencies = new Set([configFile])
+  const dependencyWatchers = new Map<string, ReturnType<typeof watch>>()
+  function watchConfigDependencies() {
+    if (command !== 'dev') return
+    const directories = new Set([...configDependencies]
+      .filter(file => relative(projectRoot, file).startsWith('..'))
+      .map(file => dirname(file)))
+    for (const [directory, watcher] of dependencyWatchers) {
+      if (!directories.has(directory)) { watcher.close(); dependencyWatchers.delete(directory) }
+    }
+    for (const directory of directories) {
+      if (dependencyWatchers.has(directory) || !existsSync(directory)) continue
+      dependencyWatchers.set(directory, watch(directory, (_event, name) => {
+        if (name && configDependencies.has(resolve(directory, name.toString()))) schedule(true)
+      }))
+    }
+  }
   async function readConfig() {
     if (!existsSync(configFile)) throw new Error('未找到 cocowiki.config.ts。')
     const loaded = await loadConfigFromFile({ command: command === 'build' ? 'build' : 'serve', mode: command === 'build' ? 'production' : 'development' }, configFile, projectRoot)
-    if (loaded) configDependencies = new Set([configFile, ...loaded.dependencies.map(file => resolve(file))])
+    if (loaded) {
+      configDependencies = new Set([configFile, ...loaded.dependencies.map(file => resolve(file))])
+      // Register as soon as loading succeeds, before validation can reject it.
+      watchConfigDependencies()
+    }
     return validateConfig(loaded?.config, projectRoot)
   }
   async function preflight(config: CocoWikiConfig) {
@@ -79,11 +99,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
       if (!relative(projectRoot, directory).startsWith('..') || !existsSync(directory)) continue
       externalWatchers.push(watch(directory, { recursive: true }, (_event, name) => schedule(configurationFailed || (name !== null && resolve(directory, name.toString()) === resolve(paths.dataDir, 'contributors.json')))))
     }
-    for (const file of configDependencies) {
-      if (relative(projectRoot, file).startsWith('..') && existsSync(dirname(file))) externalWatchers.push(watch(dirname(file), (_event, name) => {
-        if (name && resolve(dirname(file), name.toString()) === file) schedule(true)
-      }))
-    }
+
   }
 
   async function start(nextConfig: CocoWikiConfig) {
@@ -141,7 +157,7 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
       if (!server) {
         state = 'failed'; owner!.update('failed')
         if (!previous && /already in use|EADDRINUSE/.test(String(error))) {
-          watcher.close(); owner!.release(); throw error
+          watcher.close(); dependencyWatchers.forEach(watcher => watcher.close()); owner!.release(); throw error
         }
       }
     }
@@ -178,6 +194,8 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
     state = 'stopping'
     clearTimeout(timer)
     watcher.close()
+    dependencyWatchers.forEach(watcher => watcher.close())
+    dependencyWatchers.clear()
     externalWatchers.splice(0).forEach(watcher => watcher.close())
     owner!.update('stopping')
     await queue
