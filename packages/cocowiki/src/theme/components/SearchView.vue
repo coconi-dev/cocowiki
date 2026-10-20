@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { withBase } from 'vitepress'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter, withBase } from 'vitepress'
 import type { ContentRecord } from '../../shared/content'
 import { useContentStore } from '../content'
 import ContentStatus from './ContentStatus.vue'
@@ -8,6 +8,9 @@ import ContentStatus from './ContentStatus.vue'
 type SearchResultRecord = ContentRecord & { contributorNames?: string[] }
 
 const query = ref('')
+const router = useRouter()
+let previousNavigationHook: typeof router.onAfterRouteChange
+let installedNavigationHook: typeof router.onAfterRouteChange
 const type = ref('all')
 const { searchable, index: miniSearch, loading, error, retry } = useContentStore()
 
@@ -33,7 +36,18 @@ function matchSnippet(item: SearchResultRecord, needle: string) {
 }
 
 onMounted(() => {
-  query.value = new URLSearchParams(location.search).get('q') || ''
+  const syncQuery = (href: string) => { query.value = new URL(href, location.href).searchParams.get('q') || '' }
+  syncQuery(location.href)
+  previousNavigationHook = router.onAfterRouteChange
+  const previous = previousNavigationHook || router.onAfterRouteChanged
+  installedNavigationHook = async (href) => {
+    syncQuery(href)
+    await previous?.(href)
+  }
+  router.onAfterRouteChange = installedNavigationHook
+})
+onUnmounted(() => {
+  if (router.onAfterRouteChange === installedNavigationHook) router.onAfterRouteChange = previousNavigationHook
 })
 </script>
 
