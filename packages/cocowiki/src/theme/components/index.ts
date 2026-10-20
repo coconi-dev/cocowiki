@@ -14,3 +14,4 @@ export { default as SearchView } from './SearchView.vue'
 export { default as SiteHeader } from './SiteHeader.vue'
 
 export { default as PageRelations } from './PageRelations.vue'
+export { default as PageStatus } from './PageStatus.vue'

@@ -8,6 +8,7 @@ import DefaultPageMeta from './components/PageMeta.vue'
 import DefaultPageOutline from './components/PageOutline.vue'
 import DefaultContentSidebar from './components/ContentSidebar.vue'
 import DefaultPageNavigation from './components/PageNavigation.vue'
+import DefaultPageStatus from './components/PageStatus.vue'
 import DefaultPageRelations from './components/PageRelations.vue'
 import DefaultPageFooter from './components/PageFooter.vue'
 import DefaultLoadingView from './components/LoadingView.vue'
@@ -29,6 +30,7 @@ const PageMeta = overrides.PageMeta || DefaultPageMeta
 const PageOutline = overrides.PageOutline || DefaultPageOutline
 const ContentSidebar = overrides.ContentSidebar || DefaultContentSidebar
 const PageNavigation = overrides.PageNavigation || DefaultPageNavigation
+const PageStatus = overrides.PageStatus || DefaultPageStatus
 const PageRelations = overrides.PageRelations || DefaultPageRelations
 const PageFooter = overrides.PageFooter || DefaultPageFooter
 const SearchOverlay = overrides.SearchOverlay || DefaultSearchOverlay
@@ -98,10 +100,11 @@ onUnmounted(() => {
             <SearchView v-else-if="layout === 'search'" />
             <ArchiveView v-else-if="layout === 'archive'" />
             <ContributorsView v-else-if="layout === 'contributors'" />
-            <component :is="route.component" v-else-if="layout === 'special'" class="cw-special-content" v-bind="site.contentProps" />
+            <div v-else-if="layout === 'special'"><PageStatus class="cw-special-status" /><component :is="route.component" class="cw-special-content" v-bind="site.contentProps" /></div>
             <div v-else :class="['cw-doc-shell', `is-${sidebar}`]">
               <ContentSidebar v-if="sidebar === 'light'" />
               <article class="cw-doc">
+                <PageStatus />
                 <PageMeta />
                 <component :is="route.component" class="cw-prose" v-bind="site.contentProps" />
                 <PageRelations />

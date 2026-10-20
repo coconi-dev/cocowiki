@@ -2,6 +2,11 @@
 title: 欢迎使用 CoCoWiki
 order: 1
 related: [组件图鉴]
+status: stable
+maintenance:
+  owner: 皙折
+  note: 本页示例已整理，新增能力时请同步更新。
+  reviewed: '2026-10-20'
 description: 了解内容编写、组件使用与站点配置。
 type: guide
 category: 使用指南

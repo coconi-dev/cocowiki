@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import type { ContentRecord } from '../../shared/content'
 import { useContentStore } from '../content'
+import { statusLabel } from '../../shared/status'
 import { searchDocuments, searchSnippet, suggestQueries } from '../search'
 import SearchHighlight from './SearchHighlight.vue'
 import ContentStatus from './ContentStatus.vue'
@@ -58,7 +59,7 @@ onUnmounted(() => {
         <ContentStatus :loading="loading" :error="error" @retry="retry" />
         <div class="cw-results__summary" role="status"><strong>{{ results.length }}</strong> 条结果 <span v-if="query">关于“{{ query }}”</span></div>
         <a v-for="item in results" :key="item.id" class="cw-result" :href="withBase(item.route as string)">
-          <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span></div>
+          <div class="cw-result__meta"><span>{{ item.category || item.type || '资料' }}</span><span v-if="item.status">{{ statusLabel(item.status) }}</span></div>
           <h2><SearchHighlight :text="item.title" :query="query" /></h2>
           <p><SearchHighlight :text="item.description || ''" :query="query" /></p>
           <blockquote v-if="query"><SearchHighlight :text="searchSnippet(item as SearchResultRecord, query)" :query="query" /></blockquote>

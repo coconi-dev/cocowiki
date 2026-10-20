@@ -72,6 +72,7 @@ export async function checkContent(config: CocoWikiConfig, projectRoot: string):
   for (const page of pages) {
     const metadataFile = page.kind === 'vue' ? page.sourcePath.replace(/\.vue$/, '.json') : page.sourcePath
     for (const name of page.contributors || []) if (!Object.hasOwn(profiles, name)) add('unknown-contributor', metadataFile, 1, name, '贡献者未在 contributors.json 登记')
+    if (page.maintenance?.owner && !Object.hasOwn(profiles, page.maintenance.owner)) add('unknown-maintainer', metadataFile, 1, page.maintenance.owner, '维护者未在 contributors.json 登记')
     for (const target of page.related || []) if (!resolvePage(target)) add('unresolved-related', metadataFile, 1, target, '手动关联词条不存在')
     if (config.markdown?.wikiLink !== false) for (const link of page.analysis?.wiki || []) if (!resolvePage(link.target)) add('unresolved-wiki', page.sourcePath, link.line + sourceOffset(page), link.target, 'Wiki 目标未解析，访问时将跳转搜索')
     for (const link of page.analysis?.links || []) await checkLink(page, link.target, link.line + sourceOffset(page), link.image)

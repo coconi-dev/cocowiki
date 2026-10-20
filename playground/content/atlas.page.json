@@ -1,6 +1,8 @@
 {
   "title": "组件图鉴",
   "order": 2,
+  "status": "incomplete",
+  "maintenance": { "owner": "卡卡", "note": "图鉴示例仍可补充新组件。" },
   "description": "由静态 JSON 驱动的纯 Vue 功能页示例",
   "type": "special",
   "category": "功能示例",

@@ -16,7 +16,7 @@ export function tokenize(text: string) {
 export function createSearch(records: ContentRecord[]) {
   const search = new MiniSearch({
     fields: ['title', 'aliases', 'tags', 'contributors', 'description', 'content'],
-    storeFields: ['route', 'title', 'type', 'category', 'description', 'content', 'aliases', 'contributorNames'],
+    storeFields: ['route', 'title', 'type', 'category', 'description', 'content', 'aliases', 'contributorNames', 'status'],
     searchOptions: {
       boost: { title: 4, aliases: 3, contributors: 2.5, tags: 2, description: 1.5 },
       prefix: true,

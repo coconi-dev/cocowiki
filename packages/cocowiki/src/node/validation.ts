@@ -1,5 +1,6 @@
 import { existsSync, statSync } from 'node:fs'
 import { resolve, relative, isAbsolute } from 'node:path'
+import { pageStatuses } from '../shared/status'
 import type { CocoWikiConfig, CocoWikiPageMeta } from '../config'
 import { resolveProjectPaths } from './project'
 
@@ -25,6 +26,13 @@ export function validateMeta(value: unknown, file: string): Partial<CocoWikiPage
     if (meta[key] !== undefined && typeof meta[key] !== 'boolean') throw new ContentError(file, key, '必须是布尔值')
   }
   if (meta.sidebar !== undefined && !['none', 'light', 'outline'].includes(meta.sidebar as string)) throw new ContentError(file, 'sidebar', '必须是 none、light 或 outline')
+  if (meta.status !== undefined && (typeof meta.status !== 'string' || !Object.hasOwn(pageStatuses, meta.status))) throw new ContentError(file, 'status', '必须是 draft、incomplete、outdated 或 stable')
+  if (meta.maintenance !== undefined) {
+    const info = object(meta.maintenance, file, 'maintenance')
+    for (const key of ['note', 'owner']) if (info[key] !== undefined && typeof info[key] !== 'string') throw new ContentError(file, `maintenance.${key}`, '必须是字符串')
+    if (info.reviewed instanceof Date) info.reviewed = info.reviewed.toISOString()
+    if (info.reviewed !== undefined && (typeof info.reviewed !== 'string' || !Number.isFinite(Date.parse(info.reviewed)))) throw new ContentError(file, 'maintenance.reviewed', '必须是有效日期字符串')
+  }
   if (meta.updated !== undefined) {
     // YAML dates may be parsed as Date by gray-matter.
     if (meta.updated instanceof Date) meta.updated = meta.updated.toISOString()
@@ -34,7 +42,7 @@ export function validateMeta(value: unknown, file: string): Partial<CocoWikiPage
   if (typeof meta.order !== 'number' || !Number.isFinite(meta.order)) delete meta.order
   return meta as Partial<CocoWikiPageMeta>
 }
-const componentNames = new Set(['Header', 'Home', 'Search', 'Archive', 'Contributors', 'PageMeta', 'PageOutline', 'ContentSidebar', 'PageNavigation', 'PageFooter', 'PageRelations', 'SearchOverlay', 'Loading', 'NotFound'])
+const componentNames = new Set(['Header', 'Home', 'Search', 'Archive', 'Contributors', 'PageMeta', 'PageOutline', 'ContentSidebar', 'PageNavigation', 'PageFooter', 'PageRelations', 'PageStatus', 'SearchOverlay', 'Loading', 'NotFound'])
 function inside(parent: string, child: string) {
   const path = relative(parent, child)
   return !path || (!path.startsWith('..') && !isAbsolute(path))

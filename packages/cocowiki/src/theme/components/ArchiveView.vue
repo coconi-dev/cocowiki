@@ -3,10 +3,11 @@ import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import { useRouter, withBase } from 'vitepress'
 import { useContentStore } from '../content'
 import ContentStatus from './ContentStatus.vue'
+import { pageStatuses, statusLabel } from '../../shared/status'
 import { browseRecords, readBrowseFilters } from '../browse'
 import { archiveGroups } from '../archive'
 
-const filters = reactive({ query: '', category: '', tags: [] as string[] })
+const filters = reactive({ query: '', category: '', status: '', tags: [] as string[] })
 const router = useRouter()
 let previous: typeof router.onAfterRouteChange
 let installed: typeof router.onAfterRouteChange
@@ -21,7 +22,8 @@ const tags = computed(() => [...new Set(archive.value.flatMap(page => page.tags 
 const total = computed(() => groups.value.reduce((count, [, pages]) => count + pages.length, 0))
 function writeFilters(replace = false) {
   const url = new URL(location.href)
-  for (const field of ['q', 'category', 'tag']) url.searchParams.delete(field)
+  for (const field of ['q', 'category', 'tag', 'status']) url.searchParams.delete(field)
+  if (filters.status) url.searchParams.set('status', filters.status)
   if (filters.query) url.searchParams.set('q', filters.query)
   if (filters.category) url.searchParams.set('category', filters.category)
   filters.tags.forEach(tag => url.searchParams.append('tag', tag))
@@ -31,7 +33,7 @@ function toggleTag(tag: string) {
   filters.tags = filters.tags.includes(tag) ? filters.tags.filter(value => value !== tag) : [...filters.tags, tag]
   writeFilters()
 }
-function clear() { Object.assign(filters, { query: '', category: '', tags: [] }); writeFilters() }
+function clear() { Object.assign(filters, { query: '', category: '', status: '', tags: [] }); writeFilters() }
 onMounted(() => {
   const sync = (href: string) => Object.assign(filters, readBrowseFilters(href))
   sync(location.href)
@@ -51,6 +53,7 @@ onUnmounted(() => { if (router.onAfterRouteChange === installed) router.onAfterR
     </header>
     <div class="cw-archive-filters">
       <label>分类 <select v-model="filters.category" @change="writeFilters()"><option value="">全部分类</option><option v-for="category in categories" :key="category" :value="category">{{ category }}</option></select></label>
+      <label>状态 <select v-model="filters.status" @change="writeFilters()"><option value="">全部状态</option><option value="needs-attention">待维护</option><option v-for="(info, status) in pageStatuses" :key="status" :value="status">{{ info.label }}</option></select></label>
       <div class="cw-tags" aria-label="按标签组合筛选"><button v-for="tag in tags" :key="tag" type="button" :aria-pressed="filters.tags.includes(tag)" @click="toggleTag(tag)">{{ tag }}</button></div>
       <button type="button" @click="clear">清除筛选</button><span role="status">{{ total }} 条结果</span>
     </div>
@@ -59,7 +62,7 @@ onUnmounted(() => { if (router.onAfterRouteChange === installed) router.onAfterR
       <div class="cw-archive-group__title"><h2>{{ name }}</h2><small>{{ items.length }} 个条目</small></div>
       <div class="cw-archive-list">
         <a v-for="item in items" :key="item.route" :href="withBase(item.route)">
-          <div><strong>{{ item.title }}</strong><span v-if="item.aliases?.length">又名 {{ item.aliases.join('、') }}</span></div>
+          <div><strong>{{ item.title }} <small v-if="item.status" class="cw-status-chip">{{ statusLabel(item.status) }}</small></strong><span v-if="item.aliases?.length">又名 {{ item.aliases.join('、') }}</span></div>
           <p>{{ item.description }}</p><b aria-hidden="true">›</b>
         </a>
       </div>

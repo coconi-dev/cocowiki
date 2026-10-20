@@ -1,3 +1,4 @@
+import type { PageStatus } from './shared/status'
 export interface CocoWikiNavigationItem {
   text: string
   link?: string
@@ -22,6 +23,7 @@ export interface CocoWikiThemeComponents {
   PageOutline?: string
   ContentSidebar?: string
   PageNavigation?: string
+  PageStatus?: string
   PageRelations?: string
   PageFooter?: string
   SearchOverlay?: string
@@ -91,6 +93,8 @@ export interface CocoWikiPageMeta {
   image?: string
   /** Related page titles, aliases or canonical routes. */
   related?: string[]
+  status?: PageStatus
+  maintenance?: { note?: string; owner?: string; reviewed?: string }
   updated?: string
   search?: boolean
   archive?: boolean

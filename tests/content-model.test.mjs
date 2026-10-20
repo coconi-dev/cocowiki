@@ -323,7 +323,25 @@ test('category and tag browsing intersects filters and round-trips encoded URLs'
   ]
   const filters = { category: '地点', tags: ['北境', '城市'], query: '城墙' }
   assert.deepEqual(api.browseRecords(pages, filters).map(page => page.route), ['/a'])
-  assert.deepEqual(api.readBrowseFilters(api.browseUrl(filters)), filters)
+  assert.deepEqual(api.readBrowseFilters(api.browseUrl(filters)), { ...filters, status: '' })
   assert.deepEqual(api.browseRecords(pages, { ...filters, category: '不存在' }), [])
   assert.deepEqual(api.browseRecords(pages, { category: '', tags: [], query: '' }).map(page => page.route), ['/a', '/b', '/c'])
+})
+
+test('entry statuses and maintenance data are validated independently from discovery flags', async () => {
+  const site = await fixture(), content = resolve(site, 'content')
+  await put(site, 'content/draft.md', '---\ntitle: Draft\nstatus: draft\nmaintenance:\n  note: 等待资料\n  owner: Maintainer\n  reviewed: 2026-10-20\n---\n')
+  await put(site, 'content/old.page.vue', '<template>Old</template>')
+  await put(site, 'content/old.page.json', JSON.stringify({ title: 'Old', status: 'outdated', search: false, archive: true }))
+  await put(site, 'content/stable.md', '---\ntitle: Stable\nstatus: stable\narchive: false\n---\n')
+  const pages = await api.scanContent(content)
+  assert.equal(pages.find(page => page.route === '/draft').searchable, true)
+  assert.equal(pages.find(page => page.route === '/draft').maintenance.reviewed, '2026-10-20T00:00:00.000Z')
+  assert.deepEqual(api.browseRecords(pages, { query: '', category: '', tags: [], status: 'needs-attention' }).map(page => page.title), ['Draft', 'Old'])
+  assert.deepEqual(api.browseRecords(pages, { query: '', category: '', tags: [], status: 'outdated' }).map(page => page.title), ['Old'])
+  assert.deepEqual(api.readBrowseFilters(api.browseUrl({ status: 'draft' })).status, 'draft')
+  await put(site, 'content/draft.md', '---\ntitle: Draft\nstatus: unknown\n---\n')
+  await assert.rejects(api.scanContent(content), /status/)
+  await put(site, 'content/draft.md', '---\ntitle: Draft\nmaintenance: { reviewed: not-a-date }\n---\n')
+  await assert.rejects(api.scanContent(content), /maintenance.reviewed/)
 })
