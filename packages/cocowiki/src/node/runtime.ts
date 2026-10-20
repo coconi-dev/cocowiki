@@ -2,7 +2,7 @@ import fg from 'fast-glob'
 import matter from 'gray-matter'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, rmdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, relative, resolve, sep } from 'node:path'
 import type { CocoWikiConfig } from '../config'
 import type { ContentPage } from '../shared/content'
@@ -98,6 +98,35 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
   try { previous = JSON.parse(await readFile(manifestFile, 'utf8')).files } catch {
     previous = await fg('**/*', { cwd: paths.runtimeRoot, onlyFiles: true, dot: true, ignore: ['.vitepress/**'] })
   }
+  // Remove obsolete paths before writes: a former file may now be a parent
+  // directory, or a former directory may now be a file.
+  for (const path of previous.sort((a, b) => b.length - a.length)) {
+    if (!outputs.has(path)) {
+      try { await rm(resolve(paths.runtimeRoot, path), { recursive: true, force: true }) } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOTDIR') throw error
+      }
+    }
+  }
+  const directories = await fg('**/*', { cwd: paths.runtimeRoot, onlyDirectories: true, dot: true, ignore: ['.vitepress', '.vitepress/**'] })
+  for (const directory of directories.sort((a, b) => b.length - a.length)) {
+    try { await rmdir(resolve(paths.runtimeRoot, directory)) } catch (error) {
+      if (!['ENOTEMPTY', 'ENOENT'].includes((error as NodeJS.ErrnoException).code || '')) throw error
+    }
+  }
+  for (const path of outputs.keys()) {
+    const destination = resolve(paths.runtimeRoot, path)
+    // Also repair partial runs whose paths never reached the manifest.
+    let parent = dirname(destination)
+    while (parent !== paths.runtimeRoot) {
+      try { if (!(await lstat(parent)).isDirectory()) await rm(parent, { recursive: true, force: true }) } catch (error) {
+        if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code || '')) throw error
+      }
+      parent = dirname(parent)
+    }
+    try { if ((await lstat(destination)).isDirectory()) await rm(destination, { recursive: true, force: true }) } catch (error) {
+      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code || '')) throw error
+    }
+  }
   for (const [path, content] of outputs) {
     const destination = resolve(paths.runtimeRoot, path)
     if (typeof content === 'string') await writeIfChanged(destination, content)
@@ -107,7 +136,6 @@ export async function prepareRuntime(projectRoot: string, config: CocoWikiConfig
       if (!unchanged) { await mkdir(dirname(destination), { recursive: true }); await writeFile(destination, content) }
     }
   }
-  for (const path of previous) if (!outputs.has(path)) await rm(resolve(paths.runtimeRoot, path), { force: true })
   await writeIfChanged(manifestFile, JSON.stringify({ files: [...outputs.keys()], pages: pages.map(({ sourceContent, frontmatter, ...page }) => page) }, null, 2))
   await writeIfChanged(resolve(configDirectory, 'config.mts'), `import { runtimeConfig } from 'cocowiki/runtime'\nexport default runtimeConfig(${JSON.stringify(paths.runtimeRoot)})\n`)
   const snapshot = snapshots.get(paths.runtimeRoot)
