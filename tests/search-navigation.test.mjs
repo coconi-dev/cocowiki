@@ -65,3 +65,49 @@ test('mounted search tracks full navigation URLs and restores existing router ho
     await rm(temporary, { recursive: true, force: true })
   }
 })
+
+test('archive combines shared URL filters and restores them after history navigation', async () => {
+  const temporary = await mkdtemp(resolve(tmpdir(), 'cocowiki-browse-'))
+  const original = { fetch: globalThis.fetch, location: globalThis.location, history: globalThis.history }
+  const router = {}
+  globalThis.__cocowikiTestRouter = router
+  globalThis.location = { href: 'http://example.com/archive?category=地点&tag=北境&tag=城市' }
+  globalThis.history = { state: {}, pushState(_state, _title, url) { globalThis.location.href = String(url) }, replaceState(_state, _title, url) { globalThis.location.href = String(url) } }
+  globalThis.fetch = async () => ({ ok: true, json: async () => [
+    { id: '/a', route: '/a', title: '北城', category: '地点', tags: ['北境', '城市'], content: '' },
+    { id: '/b', route: '/b', title: '南城', category: '地点', tags: ['城市'], content: '' },
+    { id: '/c', route: '/c', title: '守卫', category: '人物', tags: ['北境'], content: '' }
+  ] })
+  let app
+  try {
+    await symlink(resolve(pkg, 'node_modules'), resolve(temporary, 'node_modules'), 'dir')
+    const outfile = resolve(temporary, 'archive.mjs')
+    await build({ entryPoints: [resolve(pkg, 'src/theme/components/ArchiveView.vue')], bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile, plugins: [{ name: 'components', setup(build) {
+      build.onResolve({ filter: /^vitepress$/ }, () => ({ path: 'vitepress', namespace: 'test' }))
+      build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const withBase = p => p; export const useRouter = () => globalThis.__cocowikiTestRouter' }))
+      build.onLoad({ filter: /\.vue$/ }, async ({ path }) => ({ contents: compileScript(parse(await readFile(path, 'utf8')).descriptor, { id: path, inlineTemplate: false }).content, loader: 'ts' }))
+    } }] })
+    const Component = (await import(pathToFileURL(outfile).href)).default
+    Component.render = () => null
+    const renderer = createRenderer({ createElement: () => ({}), insert() {}, remove() {}, setElementText() {}, createText: () => ({}), createComment: () => ({}), setText() {}, setComment() {}, parentNode: () => null, nextSibling: () => null, patchProp() {} })
+    app = renderer.createApp(Component)
+    app.mount({})
+    await new Promise(resolve => setImmediate(resolve))
+    const state = app._instance.setupState
+    assert.equal(state.total, 1)
+    state.clear()
+    assert.equal(state.total, 3)
+    state.toggleTag('北境')
+    assert.equal(state.total, 2)
+    assert.ok(globalThis.location.href.includes('tag='))
+    await router.onAfterRouteChange('/archive?category=人物')
+    await nextTick()
+    assert.equal(state.total, 1)
+    assert.equal(state.groups[0][1][0].title, '守卫')
+  } finally {
+    app?.unmount()
+    for (const [key, value] of Object.entries(original)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value }
+    delete globalThis.__cocowikiTestRouter
+    await rm(temporary, { recursive: true, force: true })
+  }
+})

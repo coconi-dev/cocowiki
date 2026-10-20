@@ -1,25 +1,59 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { withBase } from 'vitepress'
+import { computed, onMounted, onUnmounted, reactive } from 'vue'
+import { useRouter, withBase } from 'vitepress'
 import { useContentStore } from '../content'
 import ContentStatus from './ContentStatus.vue'
+import { browseRecords, readBrowseFilters } from '../browse'
 import { archiveGroups } from '../archive'
 
-const query = ref('')
+const filters = reactive({ query: '', category: '', tags: [] as string[] })
+const router = useRouter()
+let previous: typeof router.onAfterRouteChange
+let installed: typeof router.onAfterRouteChange
 const { records, loading, error, retry } = useContentStore()
 const archive = computed(() => records.value.filter((record) => {
   if (record.archive === false) return false
   return !['home', 'search', 'archive'].includes(record.layout || '')
 }))
-const groups = computed(() => archiveGroups(records.value, query.value))
+const groups = computed(() => archiveGroups(browseRecords(records.value, filters)))
+const categories = computed(() => [...new Set(archive.value.map(page => page.category || page.type).filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+const tags = computed(() => [...new Set(archive.value.flatMap(page => page.tags || []))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+const total = computed(() => groups.value.reduce((count, [, pages]) => count + pages.length, 0))
+function writeFilters(replace = false) {
+  const url = new URL(location.href)
+  for (const field of ['q', 'category', 'tag']) url.searchParams.delete(field)
+  if (filters.query) url.searchParams.set('q', filters.query)
+  if (filters.category) url.searchParams.set('category', filters.category)
+  filters.tags.forEach(tag => url.searchParams.append('tag', tag))
+  if (url.href !== location.href) history[replace ? 'replaceState' : 'pushState'](history.state || {}, '', url)
+}
+function toggleTag(tag: string) {
+  filters.tags = filters.tags.includes(tag) ? filters.tags.filter(value => value !== tag) : [...filters.tags, tag]
+  writeFilters()
+}
+function clear() { Object.assign(filters, { query: '', category: '', tags: [] }); writeFilters() }
+onMounted(() => {
+  const sync = (href: string) => Object.assign(filters, readBrowseFilters(href))
+  sync(location.href)
+  previous = router.onAfterRouteChange
+  const existing = previous || router.onAfterRouteChanged
+  installed = async href => { sync(href); await existing?.(href) }
+  router.onAfterRouteChange = installed
+})
+onUnmounted(() => { if (router.onAfterRouteChange === installed) router.onAfterRouteChange = previous })
 </script>
 
 <template>
   <div class="cw-archive">
     <header>
       <div><h1>浏览全部资料。</h1><p>按分类浏览 {{ archive.length }} 份记录，或直接输入名称。</p></div>
-      <label><svg class="cw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="cw-sr-only">在归档中筛选</span><input v-model="query" type="search" placeholder="在归档中筛选"></label>
+      <label><svg class="cw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="cw-sr-only">在归档中筛选</span><input v-model="filters.query" @input="writeFilters(true)" type="search" placeholder="在归档中筛选"></label>
     </header>
+    <div class="cw-archive-filters">
+      <label>分类 <select v-model="filters.category" @change="writeFilters()"><option value="">全部分类</option><option v-for="category in categories" :key="category" :value="category">{{ category }}</option></select></label>
+      <div class="cw-tags" aria-label="按标签组合筛选"><button v-for="tag in tags" :key="tag" type="button" :aria-pressed="filters.tags.includes(tag)" @click="toggleTag(tag)">{{ tag }}</button></div>
+      <button type="button" @click="clear">清除筛选</button><span role="status">{{ total }} 条结果</span>
+    </div>
     <ContentStatus :loading="loading" :error="error" @retry="retry" />
     <section v-for="([name, items]) in groups" :key="name" class="cw-archive-group">
       <div class="cw-archive-group__title"><h2>{{ name }}</h2><small>{{ items.length }} 个条目</small></div>

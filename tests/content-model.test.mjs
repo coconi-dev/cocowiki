@@ -14,7 +14,7 @@ before(async () => {
   temporary = await mkdtemp(resolve(tmpdir(), 'cocowiki-model-'))
   await symlink(resolve(pkg, 'node_modules'), resolve(temporary, 'node_modules'), 'dir')
   const out = resolve(temporary, 'model.mjs')
-  await build({ stdin: { contents: `export * from './src/node/content'; export * from './src/node/check'; export * from './src/node/validation'; export * from './src/node/runtime'; export * from './src/node/markdown'; export * from './src/shared/routes'; export * from './src/theme/search'; export * from './src/theme/archive';`, resolveDir: pkg }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: out })
+  await build({ stdin: { contents: `export * from './src/node/content'; export * from './src/node/check'; export * from './src/node/validation'; export * from './src/node/runtime'; export * from './src/node/markdown'; export * from './src/shared/routes'; export * from './src/theme/search'; export * from './src/theme/archive'; export * from './src/theme/browse';`, resolveDir: pkg }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: out })
   api = await import(pathToFileURL(out).href)
 })
 after(async () => { if (temporary) await rm(temporary, { recursive: true, force: true }) })
@@ -312,4 +312,18 @@ test('check command emits JSON, uses issue exit codes and never generates a runt
   const clean = spawnSync(process.execPath, [cli, 'check', '--json'], { cwd: site, encoding: 'utf8' })
   assert.equal(clean.status, 0, clean.stderr)
   assert.deepEqual(JSON.parse(clean.stdout), { issues: [] })
+})
+
+test('category and tag browsing intersects filters and round-trips encoded URLs', () => {
+  const pages = [
+    { route: '/a', title: '北城', category: '地点', tags: ['北境', '城市'], content: '城墙' },
+    { route: '/b', title: '南城', category: '地点', tags: ['城市'], content: '港口' },
+    { route: '/c', title: '守卫', category: '人物', tags: ['北境'], content: '' },
+    { route: '/d', title: 'Hidden', category: '地点', tags: ['北境', '城市'], archive: false }
+  ]
+  const filters = { category: '地点', tags: ['北境', '城市'], query: '城墙' }
+  assert.deepEqual(api.browseRecords(pages, filters).map(page => page.route), ['/a'])
+  assert.deepEqual(api.readBrowseFilters(api.browseUrl(filters)), filters)
+  assert.deepEqual(api.browseRecords(pages, { ...filters, category: '不存在' }), [])
+  assert.deepEqual(api.browseRecords(pages, { category: '', tags: [], query: '' }).map(page => page.route), ['/a', '/b', '/c'])
 })
