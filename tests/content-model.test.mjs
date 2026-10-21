@@ -393,3 +393,23 @@ test('include regions and source-relative scripts preserve examples and report c
   await put(site, 'content/a.md', '# A\n<!-- @include: ../snippets/missing.md -->')
   await assert.rejects(api.scanContent(resolve(site, 'content')), error => error.field === 'include' && error.line === 2 && error.file.endsWith('a.md'))
 })
+
+test('include code examples stay literal in analysis and after upstream preprocessing', async () => {
+  const site = await fixture()
+  await put(site, 'content/a.md', '# Examples\n```md\n<!-- @include: missing.md -->\n```\n\n    <!-- @include: also-missing.md -->\n\nInline `<!-- @include: inline-missing.md -->`\n')
+  const pages = await api.scanContent(resolve(site, 'content'))
+  assert.deepEqual(pages[0].document.dependencies, [])
+  assert.ok(!pages[0].content.includes('also-missing'))
+  assert.ok(!pages[0].document.source.includes('@cocowiki-example-include:'))
+  await api.prepareRuntime(site, { title: 'Test' }, 'dev', pages)
+  const generated = await readFile(resolve(site, '.cocowiki/site/a.md'), 'utf8')
+  assert.ok(!generated.includes('@include:')) // VitePress cannot execute these examples.
+  const { default: MarkdownIt } = await import(pathToFileURL(resolve(pkg, 'node_modules/markdown-it/index.mjs')).href)
+  const md = new MarkdownIt({ html: true })
+  api.applyCocoWikiMarkdown(md, [], {})
+  const html = md.render(generated)
+  assert.ok(html.includes('&lt;!-- @include: missing.md --&gt;'))
+  assert.ok(html.includes('&lt;!-- @include: also-missing.md --&gt;'))
+  assert.ok(html.includes('<code>&lt;!-- @include: inline-missing.md --&gt;</code>'))
+  assert.ok(!html.includes('@cocowiki-example-include:'))
+})

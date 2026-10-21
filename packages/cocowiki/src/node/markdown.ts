@@ -1,4 +1,5 @@
 import container from 'markdown-it-container'
+import { includeExampleMarker } from './includes'
 import type { SearchRecord } from './content.ts'
 
 function addSpoilerRule(md: any) {
@@ -103,6 +104,9 @@ export function applyCocoWikiMarkdown(
   records: SearchRecord[],
   options: { spoiler?: boolean; wikiLink?: boolean; base?: string }
 ) {
+  md.core.ruler.before('normalize', 'cocowiki-include-examples', (state: any) => {
+    state.src = state.src.replaceAll(includeExampleMarker, '@include:')
+  })
   if (options.spoiler !== false) addSpoilerRule(md)
   if (options.wikiLink !== false) addWikiLinkRule(md, records, options.base || '/')
   addTableWrapper(md)

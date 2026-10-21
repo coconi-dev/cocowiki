@@ -8,7 +8,7 @@ import type { CocoWikiConfig } from '../config'
 import type { ContentPage } from '../shared/content'
 import { resolveProjectPaths, runtimePath, type RuntimeMode } from './project'
 import { validateContributors } from './validation'
-import { sourceLocation } from './includes'
+import { sourceLocation, protectIncludeExamples } from './includes'
 import { snapshots } from './snapshot'
 
 function raise(message: string): never { throw new Error(message) }
@@ -34,7 +34,7 @@ export function rebaseMarkdown(source: string, sourceFile: string, generatedFile
     source = source.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, (script, offset) => examples.some(([start, end]) => offset >= start && offset < end) ? script : script.replace(/((?:from\s*|import\s*\(\s*|import\s*)['"])(\.{1,2}\/[^'"\n]+)(['"])/g, (_all: string, before: string, path: string, after: string, inner: number) => before + rebase(path, offset + inner) + after))
     locate = undefined
     // Already rebased imports must not be rewritten a second time.
-    return source
+    return protectIncludeExamples(source)
   }
   const examples: string[] = []
   source = source.replace(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\2[ \t]*$/gm, block => `\u0000CW_EXAMPLE_${examples.push(block) - 1}\u0000`)
@@ -47,7 +47,7 @@ export function rebaseMarkdown(source: string, sourceFile: string, generatedFile
     if (!match[1].startsWith('@') && !existsSync(resolve(dirname(sourceFile), match[1]))) raise(`${sourceFile} [include]: 文件不存在：${match[1]}`)
     return `<!-- @include: ${target}${match[2] || ''} -->`
   })
-  return source.replace(/\u0000CW_EXAMPLE_(\d+)\u0000/g, (_all, index) => examples[Number(index)])
+  return protectIncludeExamples(source.replace(/\u0000CW_EXAMPLE_(\d+)\u0000/g, (_all, index) => examples[Number(index)]))
 }
 
 const generatedSnapshots = new Map<string, {

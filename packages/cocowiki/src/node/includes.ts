@@ -1,8 +1,46 @@
 import { readFile, realpath } from 'node:fs/promises'
 import { dirname, extname, resolve } from 'node:path'
 import matter from 'gray-matter'
+import MarkdownIt from 'markdown-it'
 import type { SourceDocument, SourceLocation, SourceSpan } from '../shared/document'
 import { ContentError } from './validation'
+
+// VitePress expands include comments before Markdown parsing, even in code blocks.
+// Mask examples until our Markdown hook runs, after that upstream preprocessing.
+export const includeExampleMarker = '@cocowiki-example-include:'
+const exampleParser = new MarkdownIt({ html: true })
+// Observe the same exact-length backtick pairs consumed by Markdown-it.
+exampleParser.inline.ruler.before('backticks', 'include-example-range', (state, silent) => {
+  const start = state.pos
+  if (silent || state.src[start] !== '`' || !state.env.codeRanges) return false
+  let end = start
+  while (state.src[end] === '`') end++
+  const length = end - start
+  let next = end
+  while ((next = state.src.indexOf('`', next)) >= 0) {
+    let close = next
+    while (state.src[close] === '`') close++
+    if (close - next === length) { state.env.codeRanges.push([state.env.offset + start, state.env.offset + close]); break }
+    next = close
+  }
+  return false
+})
+function includeExampleRanges(source: string) {
+  if (!source.includes('@include:')) return []
+  const ranges: number[][] = []
+  for (const token of exampleParser.parse(source, {})) {
+    if (!token.map) continue
+    const start = lineOffset(source, token.map[0] + 1), end = lineOffset(source, token.map[1] + 1)
+    if (['fence', 'code_block'].includes(token.type)) ranges.push([start, end])
+    else if (token.type === 'inline') exampleParser.inline.parse(source.slice(start, end), exampleParser, { codeRanges: ranges, offset: start }, [])
+  }
+  ranges.sort((a, b) => a[0] - b[0])
+  return ranges
+}
+export function protectIncludeExamples(source: string) {
+  for (const [start, end] of includeExampleRanges(source).reverse()) source = source.slice(0, start) + source.slice(start, end).replaceAll('@include:', includeExampleMarker) + source.slice(end)
+  return source
+}
 
 export function sourceLocation(document: SourceDocument, offset: number): SourceLocation {
   const span = document.spans.find(span => offset >= span.start && offset < span.end) || document.spans.at(-1)
@@ -10,13 +48,14 @@ export function sourceLocation(document: SourceDocument, offset: number): Source
 }
 export function lineOffset(source: string, line: number) {
   let offset = 0
-  for (let n = 1; n < line; n++) { const next = source.indexOf('\n', offset); if (next < 0) break; offset = next + 1 }
+  for (let n = 1; n < line; n++) { const next = source.indexOf('\n', offset); if (next < 0) return source.length; offset = next + 1 }
   return offset
 }
 /** Expand once for analysis and rendering. Spans retain original source lines. */
 export async function expandDocument(source: string, file: string, contentRoot: string, firstLine = 1, observe: (file: string) => void = () => {}): Promise<SourceDocument> {
   const dependencies = new Set<string>()
   async function expand(text: string, current: string, line: number, stack: string[]): Promise<{ source: string; spans: SourceSpan[] }> {
+    const examples = includeExampleRanges(text)
     const output = { source: '', spans: [] as SourceSpan[] }
     function append(part: string, location: SourceLocation) {
       if (!part) return
@@ -26,6 +65,7 @@ export async function expandDocument(source: string, file: string, contentRoot: 
     }
     let cursor = 0
     for (const match of text.matchAll(/<!--\s*@include:\s*(.*?)\s*-->/g)) {
+      if (examples.some(([start, end]) => match.index! >= start && match.index! < end)) continue
       append(text.slice(cursor, match.index), { file: current, line: line + text.slice(0, cursor).split('\n').length - 1 })
       const atLine = line + text.slice(0, match.index).split('\n').length - 1
       const target = match[1].trim()
