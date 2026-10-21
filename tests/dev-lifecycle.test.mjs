@@ -249,6 +249,16 @@ test('pnpm dev owns its terminal lifecycle and repeated invocation succeeds', {
   const secondExit = once(second.child, 'exit')
   process.kill(-second.child.pid, 'SIGINT')
   await secondExit
+  // pnpm can exit before its child finishes asynchronous Vite shutdown.
+  // Wait for the service-owned lease, then still require the actual port to be free.
+  const shutdownDeadline = Date.now() + 10000
+  while (Date.now() < shutdownDeadline) {
+    try { await readFile(resolve(site, '.cocowiki/dev.lock')) } catch (error) {
+      if (error.code === 'ENOENT') break
+      throw error
+    }
+    await delay(25)
+  }
   await assert.rejects(readFile(resolve(site, '.cocowiki/dev.lock')), { code: 'ENOENT' })
   const socket = createServer()
   socket.listen(port, 'localhost')

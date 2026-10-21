@@ -87,7 +87,7 @@ function contentPlugin(
         if (request.url?.split('?')[0]?.endsWith('/__cocowiki/status')) {
           response.setHeader('Content-Type', 'application/json; charset=utf-8')
           response.setHeader('Cache-Control', 'no-store')
-          response.end(JSON.stringify({ pid: process.pid, projectId, token: process.env.COCOWIKI_DEV_INSTANCE }))
+          response.end(JSON.stringify({ pid: process.pid, projectId, token: snapshots.get(runtimeRoot)?.devToken }))
           return
         }
         const url = request.url?.split('?')[0] || ''
@@ -166,11 +166,11 @@ export async function createVitePressConfig(
     vite: {
       customLogger,
       publicDir: paths.publicDir,
-      // A cold dependency crawl must not leave pending transforms blocking a
-      // complete server replacement after a config change.
-      optimizeDeps: { include: ['cocowiki > minisearch'], holdUntilCrawlEnd: false },
+      // Warm the shared Vue runtime; search dependencies stay demand-driven.
+      // Do not start background transforms that can outlive a service replacement.
+      optimizeDeps: { include: ['vue'], holdUntilCrawlEnd: false },
       plugins: [contentPlugin(config, paths.dataDir, records, projectRoot, paths.runtimeRoot)],
-      server: { fs: { allow: [projectRoot, resolve(import.meta.dirname, '../..')] } },
+      server: { preTransformRequests: false, fs: { allow: [projectRoot, resolve(import.meta.dirname, '../..')] } },
       resolve: {
         alias: {
           '@components': paths.componentsDir,

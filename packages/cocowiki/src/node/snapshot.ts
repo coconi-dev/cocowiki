@@ -3,6 +3,7 @@ import type { ContentPage } from '../shared/content'
 export interface Snapshot {
   pages: ContentPage[]
   config: CocoWikiConfig
+  devToken?: string
   changedFiles?: Set<string>
   notify?: () => void
 }

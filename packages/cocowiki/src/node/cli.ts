@@ -1,16 +1,13 @@
-import { watch, existsSync } from 'node:fs'
-import { resolve, relative, dirname } from 'node:path'
+import { existsSync } from 'node:fs'
+import { resolve, relative } from 'node:path'
 import { loadConfigFromFile } from 'vite'
-import { build, createServer, disposeMdItInstance, serve } from 'vitepress'
-import { acquireDevInstance } from './dev-instance'
+import { build, serve } from 'vitepress'
+import { DevSession } from './dev/session'
 import { checkContent } from './check'
-import { createContentScanner } from './content'
+import { scanContent } from './content'
 import { ContentError, validateConfig } from './validation'
-import { prepareRuntime, preflightRuntime } from './runtime'
-import { snapshots } from './snapshot'
+import { prepareRuntime, preflightRuntime, releaseRuntime } from './runtime'
 import { resolveProjectPaths, runtimePath, type RuntimeMode } from './project'
-import { normalizeBase } from '../shared/routes'
-import type { CocoWikiConfig } from '../config'
 
 const log = {
   info: (message: string) => console.log(`[cocowiki] ${message}`),
@@ -36,61 +33,10 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
   const configFile = resolve(projectRoot, 'cocowiki.config.ts')
   const mode: RuntimeMode = command === 'check' ? 'build' : command
   const root = runtimePath(projectRoot, mode)
-  const instance = command === 'dev' ? await acquireDevInstance(projectRoot) : undefined
-  if (instance?.kind === 'existing') {
-    log.info(`开发服务已在运行：${instance.url}（PID ${instance.pid}）`)
-    return
-  }
-  const owner = instance?.kind === 'owner' ? instance : undefined
-  if (owner) {
-    process.env.COCOWIKI_DEV_INSTANCE = owner.token
-    process.once('exit', () => owner.release())
-  }
-  let configDependencies = new Set([configFile])
-  const dependencyWatchers = new Map<string, ReturnType<typeof watch>>()
-  function watchConfigDependencies() {
-    if (command !== 'dev') return
-    const directories = new Set([...configDependencies]
-      .filter(file => relative(projectRoot, file).startsWith('..'))
-      .map(file => dirname(file)))
-    for (const [directory, watcher] of dependencyWatchers) {
-      if (!directories.has(directory)) { watcher.close(); dependencyWatchers.delete(directory) }
-    }
-    for (const directory of directories) {
-      if (dependencyWatchers.has(directory) || !existsSync(directory)) continue
-      dependencyWatchers.set(directory, watch(directory, (_event, name) => {
-        if (name && configDependencies.has(resolve(directory, name.toString()))) schedule(true)
-      }))
-    }
-  }
   async function readConfig() {
     if (!existsSync(configFile)) throw new Error('未找到 cocowiki.config.ts。')
     const loaded = await loadConfigFromFile({ command: command === 'build' ? 'build' : 'serve', mode: command === 'build' ? 'production' : 'development' }, configFile, projectRoot)
-    if (loaded) {
-      configDependencies = new Set([configFile, ...loaded.dependencies.map(file => resolve(file))])
-      // Register as soon as loading succeeds, before validation can reject it.
-      watchConfigDependencies()
-    }
     return validateConfig(loaded?.config, projectRoot)
-  }
-  const scanners = new Map<string, ReturnType<typeof createContentScanner>>()
-  async function preflight(config: CocoWikiConfig, changes?: ReadonlySet<string>, historyChanged = false) {
-    const paths = resolveProjectPaths(projectRoot, config)
-    let scanner = scanners.get(paths.contentDir)
-    if (!scanner) { scanner = createContentScanner(paths.contentDir); scanners.set(paths.contentDir, scanner) }
-    if (historyChanged) scanner.invalidateGit()
-    const current = snapshots.get(root)?.pages
-    const contentChanges = changes && new Set([...changes].filter(file => !relative(paths.contentDir, file).startsWith('..') || scanner!.getDependencies().some(dependency => dependency === file || !relative(file, dependency).startsWith('..'))))
-    let pages
-    try {
-      pages = current && contentChanges?.size === 0 && !historyChanged ? current : await scanner.scan(config.search, contentChanges, config.markdown?.wikiLink !== false)
-    } finally { if (command === 'dev') watchExternal(config) }
-    const previous = new Map(current?.map(page => [page.sourcePath, page]))
-    // Components/data do not require reading or reparsing every Markdown page.
-    const validatePages = changes === undefined || historyChanged || [...(contentChanges || [])].some(file => !/\.(md|vue|json)$/.test(file))
-      ? pages : pages.filter(page => previous.get(page.sourcePath) !== page)
-    await preflightRuntime(projectRoot, config, mode, validatePages)
-    return pages
   }
   if (command === 'check') {
     let issues
@@ -110,157 +56,28 @@ export async function run(args = process.argv.slice(2), projectRoot = process.cw
   }
   if (command !== 'dev') {
     const config = await readConfig()
-    await prepareRuntime(projectRoot, config, mode, await preflight(config))
-    if (command === 'build') { await build(root); log.info(`✓ 构建完成：${resolveProjectPaths(projectRoot, config).outDir}`) }
-    else await serve({ root, ...options })
+    try {
+      const paths = resolveProjectPaths(projectRoot, config)
+      const pages = await scanContent(paths.contentDir, config.search, config.markdown)
+      await preflightRuntime(projectRoot, config, mode, pages)
+      await prepareRuntime(projectRoot, config, mode, pages)
+      if (command === 'build') { await build(root); log.info(`✓ 构建完成：${paths.outDir}`) }
+      else await serve({ root, ...options })
+    } finally { releaseRuntime(root) }
     return
   }
 
-  let config: CocoWikiConfig | undefined
-  let server: Awaited<ReturnType<typeof createServer>> | undefined
-  let state: 'starting' | 'running' | 'restarting' | 'failed' | 'stopping' = 'starting'
-  let queue = Promise.resolve()
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let configPending = true
-  let revision = 0
-  const pendingFiles = new Set<string>()
-  let historyPending = false
-  let configurationFailed = false
-  const externalWatchers: ReturnType<typeof watch>[] = []
-  function watchExternal(next: CocoWikiConfig) {
-    externalWatchers.splice(0).forEach(watcher => watcher.close())
-    const paths = resolveProjectPaths(projectRoot, next)
-    for (const directory of new Set([paths.contentDir, paths.componentsDir, paths.dataDir, ...[...scanners.values()].flatMap(scanner => scanner.getDependencies().map(file => dirname(file)))])) {
-      if (!relative(projectRoot, directory).startsWith('..') || !existsSync(directory)) continue
-      externalWatchers.push(watch(directory, { recursive: true }, (_event, name) => {
-        const file = name === null ? directory : resolve(directory, name.toString())
-        schedule(configurationFailed || file === resolve(paths.dataDir, 'contributors.json'), file)
-      }))
-    }
+  const session = new DevSession(projectRoot, options, log)
+  const stop = () => { void session.close().then(() => process.exit(0)).catch(error => { log.error(error); process.exit(1) }) }
+  // Keep handlers installed while closing: upstream signal-exit checks listener
+  // counts during emission, and repeated terminal signals must share one close.
+  process.on('SIGINT', stop)
+  process.on('SIGTERM', stop)
+  try { if (await session.start()) return session } catch (error) { await session.close(); throw error }
+  finally {
+    if (session.state === 'stopped' || session.state === 'starting') { process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop) }
   }
-
-  async function start(nextConfig: CocoWikiConfig) {
-    const active = await createServer(root, { ...options, strictPort: true })
-    try { await active.listen() } catch (error) { await active.close(); throw error }
-    server = active
-    const local = active.resolvedUrls?.local[0] || `http://localhost:${options.port || 5173}/`
-    const url = new URL(local)
-    url.pathname = normalizeBase(nextConfig.base)
-    owner!.update('ready', url.href)
-    state = 'running'
-    log.info(`✓ 本地预览：${url.href}`)
-  }
-  const isStopping = () => state === 'stopping'
-  async function update() {
-    if (state === 'stopping') return
-    const replace = configPending || !server
-    configPending = false
-    const version = revision
-    const changes = new Set(pendingFiles)
-    pendingFiles.clear()
-    const historyChanged = historyPending
-    historyPending = false
-    const previous = config
-    try {
-      const next = replace ? await readConfig() : config!
-      const pages = await preflight(next, replace ? undefined : changes, historyChanged)
-      if (replace) configurationFailed = false
-      if (isStopping()) return
-      if (version !== revision) {
-        configPending ||= replace
-        changes.forEach(file => pendingFiles.add(file))
-        historyPending ||= historyChanged
-        return
-      }
-      if (!replace) {
-        await prepareRuntime(projectRoot, next, mode, pages, changes)
-        snapshots.get(root)?.notify?.()
-        return
-      }
-      state = 'restarting'
-      owner!.update('restarting')
-      await server?.close()
-      server = undefined
-      disposeMdItInstance()
-      try {
-        await prepareRuntime(projectRoot, next, mode, pages)
-        await start(next)
-        config = next
-        watchExternal(next)
-        if (previous) log.info('✓ 配置已更新，开发服务已重建')
-      } catch (error) {
-        log.error(error)
-        configurationFailed = true
-        // An upstream startup failure must not end the independent watcher.
-        if (previous) {
-          await prepareRuntime(projectRoot, previous, mode, await preflight(previous))
-          await start(previous)
-        } else throw error
-      }
-    } catch (error) {
-      changes.forEach(file => pendingFiles.add(file))
-      historyPending ||= historyChanged
-      log.error(error)
-      if (replace) configurationFailed = true
-      if (!server) {
-        state = 'failed'; owner!.update('failed')
-        if (!previous && /already in use|EADDRINUSE/.test(String(error))) {
-          watcher.close(); dependencyWatchers.forEach(watcher => watcher.close()); owner!.release(); throw error
-        }
-      }
-    }
-  }
-  function schedule(configuration: boolean, file?: string, historyChanged = false) {
-    if (state === 'stopping') return
-    if (file) pendingFiles.add(file)
-    historyPending ||= historyChanged
-    revision++
-    configPending ||= configuration
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      queue = queue.then(update).catch(log.error)
-    }, 80)
-  }
-  // This watcher belongs to the command, never to a replaceable Vite session.
-  const watcher = watch(projectRoot, { recursive: true }, (_event, filename) => {
-    if (!filename) return
-    const path = filename.toString().replace(/\\/g, '/')
-    if (path === '.git/HEAD' || path === '.git/packed-refs' || path === '.git/shallow' || path.startsWith('.git/refs/')) { schedule(false, undefined, true); return }
-    if (path.startsWith('.cocowiki/') || path.startsWith('node_modules/') || path.startsWith('.git/')) return
-    if (configDependencies.has(resolve(projectRoot, path))) { schedule(true); return }
-    if (/\.timestamp-/.test(path)) return
-    if (!config) { if (/\.(vue|css|ts|js|json|md)$/.test(path)) schedule(true); return }
-    const paths = resolveProjectPaths(projectRoot, config)
-    const file = resolve(projectRoot, path)
-    if (!relative(paths.outDir, file).startsWith('..')) return
-    const inside = (directory: string) => { const rel = relative(directory, file); return !rel.startsWith('..') }
-    if ([paths.contentDir, paths.componentsDir, paths.dataDir].some(inside) || [...scanners.values()].some(scanner => scanner.getDependencies().some(dependency => dependency === file || !relative(file, dependency).startsWith('..')))) schedule(file === resolve(paths.dataDir, 'contributors.json'), file)
-    // A repaired missing theme file also retries the latest failed config.
-    if (state === 'failed' || /\.(?:vue|css|ts|js|json|md)$/.test(path)) {
-      if (!server || configurationFailed) schedule(true)
-    }
-  })
-  async function close() {
-    if (state === 'stopping') return
-    state = 'stopping'
-    clearTimeout(timer)
-    watcher.close()
-    dependencyWatchers.forEach(watcher => watcher.close())
-    dependencyWatchers.clear()
-    externalWatchers.splice(0).forEach(watcher => watcher.close())
-    owner!.update('stopping')
-    await queue
-    await server?.close()
-    disposeMdItInstance()
-    owner!.release()
-    process.exit(0)
-  }
-  process.on('SIGINT', () => void close())
-  process.on('SIGTERM', () => void close())
-  queue = update()
-  await queue
-  // Invalid configurations remain repairable without relaunching the command.
-  if (!server) log.info('等待修复配置或内容文件。')
 }
 
 export { acquireDevInstance } from './dev-instance'
+export { DevSession } from './dev/session'

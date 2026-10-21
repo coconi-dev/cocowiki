@@ -187,3 +187,9 @@ export async function preflightRuntime(projectRoot: string, config: CocoWikiConf
     rebaseMarkdown(await readFile(file, 'utf8'), file, resolve(paths.runtimeRoot, path))
   }
 }
+
+/** Drop all process-local state owned by this generated runtime. Files stay for diagnostics. */
+export function releaseRuntime(root: string) {
+  snapshots.delete(root)
+  generatedSnapshots.delete(root)
+}

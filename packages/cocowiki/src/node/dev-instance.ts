@@ -33,6 +33,11 @@ export async function acquireDevInstance(projectRoot: string) {
       const ownsLease = () => {
         try { return JSON.parse(readFileSync(filename, 'utf8')).token === token } catch { return false }
       }
+      const release = () => {
+        process.removeListener('exit', release)
+        if (ownsLease()) rmSync(filename, { force: true })
+      }
+      process.once('exit', release)
       return {
         kind: 'owner' as const,
         token,
@@ -45,9 +50,7 @@ export async function acquireDevInstance(projectRoot: string) {
             renameSync(temporary, filename)
           } finally { rmSync(temporary, { force: true }) }
         },
-        release() {
-          if (ownsLease()) rmSync(filename, { force: true })
-        }
+        release
       }
     }
 
