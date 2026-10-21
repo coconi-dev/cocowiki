@@ -1,3 +1,5 @@
+import type { ThemeComponentName } from './shared/extensions'
+export type { ThemeComponentName } from './shared/extensions'
 import type { PageStatus } from './shared/status'
 export interface CocoWikiNavigationItem {
   text: string
@@ -13,23 +15,7 @@ export interface CocoWikiDirectories {
   out?: string
 }
 
-export interface CocoWikiThemeComponents {
-  Header?: string
-  Home?: string
-  Search?: string
-  Archive?: string
-  Contributors?: string
-  PageMeta?: string
-  PageOutline?: string
-  ContentSidebar?: string
-  PageNavigation?: string
-  PageStatus?: string
-  PageRelations?: string
-  PageFooter?: string
-  SearchOverlay?: string
-  Loading?: string
-  NotFound?: string
-}
+export type CocoWikiThemeComponents = Partial<Record<ThemeComponentName, string>>
 
 export interface CocoWikiThemeConfig {
   /** A complete VitePress-compatible theme entry, relative to the project root. */

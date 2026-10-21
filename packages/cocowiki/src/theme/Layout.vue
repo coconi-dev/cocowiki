@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Component } from 'vue'
+import { themeComponentNames, type ThemeComponentName } from '../shared/extensions'
 import { computed, defineAsyncComponent, inject, onMounted, onUnmounted, ref } from 'vue'
 import { useData, useRoute } from 'vitepress'
 import config from 'virtual:cocowiki-config'
@@ -21,21 +23,25 @@ const DefaultContributorsView = defineAsyncComponent(() => import('./components/
 const DefaultSearchOverlay = defineAsyncComponent(() => import('./components/SearchOverlay.vue'))
 
 const overrides = inject(cocoWikiThemeComponentsKey, {})
-const SiteHeader = overrides.Header || DefaultSiteHeader
-const HomeView = overrides.Home || DefaultHomeView
-const SearchView = overrides.Search || DefaultSearchView
-const ArchiveView = overrides.Archive || DefaultArchiveView
-const ContributorsView = overrides.Contributors || DefaultContributorsView
-const PageMeta = overrides.PageMeta || DefaultPageMeta
-const PageOutline = overrides.PageOutline || DefaultPageOutline
-const ContentSidebar = overrides.ContentSidebar || DefaultContentSidebar
-const PageNavigation = overrides.PageNavigation || DefaultPageNavigation
-const PageStatus = overrides.PageStatus || DefaultPageStatus
-const PageRelations = overrides.PageRelations || DefaultPageRelations
-const PageFooter = overrides.PageFooter || DefaultPageFooter
-const SearchOverlay = overrides.SearchOverlay || DefaultSearchOverlay
-const LoadingView = overrides.Loading || DefaultLoadingView
-const NotFoundView = overrides.NotFound || DefaultNotFoundView
+const defaults = {
+  Header: DefaultSiteHeader,
+  Home: DefaultHomeView,
+  Search: DefaultSearchView,
+  Archive: DefaultArchiveView,
+  Contributors: DefaultContributorsView,
+  PageMeta: DefaultPageMeta,
+  PageOutline: DefaultPageOutline,
+  ContentSidebar: DefaultContentSidebar,
+  PageNavigation: DefaultPageNavigation,
+  PageStatus: DefaultPageStatus,
+  PageRelations: DefaultPageRelations,
+  PageFooter: DefaultPageFooter,
+  SearchOverlay: DefaultSearchOverlay,
+  Loading: DefaultLoadingView,
+  NotFound: DefaultNotFoundView,
+} satisfies Record<ThemeComponentName, Component>
+const components = Object.fromEntries(themeComponentNames.map(name => [name, overrides[name] || defaults[name]])) as Record<ThemeComponentName, Component>
+const { Header: SiteHeader, Home: HomeView, Search: SearchView, Archive: ArchiveView, Contributors: ContributorsView, PageMeta, PageOutline, ContentSidebar, PageNavigation, PageStatus, PageRelations, PageFooter, SearchOverlay, Loading: LoadingView, NotFound: NotFoundView } = components
 
 const { frontmatter, page, site } = useData()
 const route = useRoute()

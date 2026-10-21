@@ -1,5 +1,6 @@
 import { existsSync, statSync } from 'node:fs'
 import { resolve, relative, isAbsolute } from 'node:path'
+import { themeComponentNames } from '../shared/extensions'
 import { pageStatuses } from '../shared/status'
 import type { CocoWikiConfig, CocoWikiPageMeta } from '../config'
 import { resolveProjectPaths } from './project'
@@ -42,7 +43,7 @@ export function validateMeta(value: unknown, file: string): Partial<CocoWikiPage
   if (typeof meta.order !== 'number' || !Number.isFinite(meta.order)) delete meta.order
   return meta as Partial<CocoWikiPageMeta>
 }
-const componentNames = new Set(['Header', 'Home', 'Search', 'Archive', 'Contributors', 'PageMeta', 'PageOutline', 'ContentSidebar', 'PageNavigation', 'PageFooter', 'PageRelations', 'PageStatus', 'SearchOverlay', 'Loading', 'NotFound'])
+const componentNames = new Set<string>(themeComponentNames)
 function inside(parent: string, child: string) {
   const path = relative(parent, child)
   return !path || (!path.startsWith('..') && !isAbsolute(path))

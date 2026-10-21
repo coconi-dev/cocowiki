@@ -1,21 +1,7 @@
 import type { Component, InjectionKey } from 'vue'
+import type { ThemeComponentName } from '../shared/extensions'
+export { themeComponentNames, type ThemeComponentName } from '../shared/extensions'
 
-export interface CocoWikiThemeComponentOverrides {
-  Header?: Component
-  Home?: Component
-  Search?: Component
-  Archive?: Component
-  Contributors?: Component
-  PageMeta?: Component
-  PageOutline?: Component
-  ContentSidebar?: Component
-  PageNavigation?: Component
-  PageStatus?: Component
-  PageRelations?: Component
-  PageFooter?: Component
-  SearchOverlay?: Component
-  Loading?: Component
-  NotFound?: Component
-}
+export type CocoWikiThemeComponentOverrides = Partial<Record<ThemeComponentName, Component>>
 
 export const cocoWikiThemeComponentsKey: InjectionKey<CocoWikiThemeComponentOverrides> = Symbol('cocowiki-theme-components')
